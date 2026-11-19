@@ -1,0 +1,2599 @@
+package app.podium
+
+import android.app.Activity
+import android.content.Intent
+import android.os.SystemClock
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ContentTransform
+import kotlin.math.roundToInt
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOut
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.first
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.navigation3.runtime.NavEntry
+import androidx.navigation3.scene.Scene
+import androidx.navigation3.ui.LocalNavAnimatedContentScope
+import androidx.navigation3.ui.NavDisplay
+import app.podium.core.common.DiskActivity
+import app.podium.core.common.Outcome
+import app.podium.core.designsystem.artwork.BackgroundExtension
+import app.podium.core.designsystem.artwork.LocalArtworkLoader
+import app.podium.core.designsystem.artwork.rememberArtworkState
+import app.podium.core.designsystem.component.GlassMenu
+import app.podium.core.designsystem.component.ImmersiveHost
+import app.podium.core.designsystem.component.KeyboardHost
+import app.podium.core.designsystem.component.KeyboardStyle
+import app.podium.core.designsystem.component.LocalImmersiveHost
+import app.podium.core.designsystem.component.LocalKeyboardHost
+import app.podium.core.designsystem.component.LocalKeyboardStyle
+import app.podium.core.designsystem.component.LocalMiniature
+import app.podium.core.designsystem.component.LocalMiniatureFocusKey
+import app.podium.core.designsystem.component.LocalOverlayHost
+import app.podium.core.designsystem.component.LocalPaperDecor
+import app.podium.core.designsystem.component.LocalPaperPeek
+import app.podium.core.designsystem.component.LocalPaperKey
+import app.podium.core.designsystem.component.LocalColumnTransition
+import app.podium.core.designsystem.component.softArrival
+import app.podium.core.designsystem.component.softDeparture
+import app.podium.core.designsystem.component.LocalPaperLenses
+import app.podium.core.designsystem.component.PaperLenses
+import app.podium.core.designsystem.component.LocalScreenInsets
+import app.podium.core.designsystem.component.MiniPlayer
+import app.podium.core.designsystem.component.OverlayHost
+import app.podium.core.designsystem.component.PaperGeometry
+import app.podium.core.designsystem.component.PodWheel
+import app.podium.core.designsystem.component.ScreenInsets
+import app.podium.core.designsystem.component.WheelKeyboard
+import app.podium.core.designsystem.glass.GlassHost
+import app.podium.core.designsystem.glass.scrollEdgeFade
+import app.podium.core.designsystem.l10n.AppLanguage
+import app.podium.core.designsystem.l10n.LocalAppStrings
+import app.podium.core.designsystem.l10n.ProvideAppL10n
+import app.podium.core.designsystem.shell.BootScreen
+import app.podium.core.designsystem.shell.BootReveal
+import app.podium.core.designsystem.shell.DeviceBody
+import app.podium.core.designsystem.shell.DeviceLayout
+import app.podium.core.designsystem.shell.HeaderDynamicMenuIcon
+import app.podium.core.designsystem.shell.HomeMenuIconKind
+import app.podium.core.designsystem.shell.PowerButton
+import app.podium.core.designsystem.shell.ScreenHeader
+import app.podium.core.designsystem.shell.ScreenHeaderHeight
+import app.podium.core.designsystem.shell.ShellPalette
+import app.podium.core.designsystem.shell.StatusLeds
+import app.podium.core.designsystem.shell.palette
+import app.podium.core.designsystem.theme.Atmosphere
+import app.podium.core.designsystem.theme.AtmosphereBackground
+import app.podium.core.designsystem.theme.DisplayBackground
+import app.podium.core.designsystem.theme.DisplayStyle
+import app.podium.core.designsystem.tonal.AlbumAtmosphere
+import app.podium.core.designsystem.tonal.LocalAlbumTone
+import app.podium.core.designsystem.tonal.defocus
+import app.podium.core.designsystem.tonal.rememberAlbumTone
+import app.podium.core.designsystem.tonal.rememberCoverAnalysis
+import app.podium.core.designsystem.theme.LocalDisplaySurface
+import app.podium.core.designsystem.theme.PodiumMotion
+import app.podium.core.designsystem.theme.PodiumTheme
+import app.podium.core.designsystem.theme.Spacing
+import app.podium.core.interaction.Clicker
+import app.podium.core.interaction.DoublePress
+import app.podium.core.interaction.Feedback
+import app.podium.core.interaction.InputRouter
+import app.podium.core.interaction.LocalFeedback
+import app.podium.core.interaction.LocalInputRouter
+import app.podium.core.interaction.PodiumHaptics
+import app.podium.core.interaction.PodiumInput
+import app.podium.core.interaction.WheelButton
+import app.podium.core.model.AlbumId
+import app.podium.core.model.ArtistId
+import app.podium.core.model.PlaylistId
+import app.podium.core.model.Track
+import app.podium.core.model.TrackId
+import app.podium.feature.library.AddSongsScreen
+import app.podium.feature.library.AlbumScreen
+import app.podium.feature.library.AlbumsScreen
+import app.podium.feature.library.ArtistScreen
+import app.podium.feature.library.ArtistsScreen
+import app.podium.feature.library.CoverFlowScreen
+import app.podium.feature.library.FavoritesScreen
+import app.podium.feature.library.HomeScreen
+import app.podium.feature.library.LibraryAlbum
+import app.podium.feature.library.LibraryArtist
+import app.podium.feature.library.LibraryIndex
+import app.podium.feature.library.LibraryState
+import app.podium.feature.library.LocalPlaylistPicker
+import app.podium.feature.library.LocalSongEditor
+import app.podium.feature.library.LocalSongEditorHost
+import app.podium.feature.library.MusicScreen
+import app.podium.feature.library.NamePlaylistScreen
+import app.podium.feature.library.PlaylistKeys
+import app.podium.feature.library.PlaylistPicker
+import app.podium.feature.library.PlaylistScreen
+import app.podium.feature.library.PlaylistsScreen
+import app.podium.feature.library.SongsScreen
+import app.podium.feature.nowplaying.LyricsScreen
+import app.podium.feature.nowplaying.NowPlayingScreen
+import app.podium.feature.nowplaying.sleepTimerMenu
+import app.podium.feature.nowplaying.UpNextScreen
+import app.podium.feature.online.OnlineActions
+import app.podium.feature.online.OnlinePlace
+import app.podium.feature.online.OnlineScreen
+import app.podium.feature.online.showAddToPlaylist
+import app.podium.feature.settings.AppearanceLevel
+import app.podium.feature.settings.AppearanceScreen
+import app.podium.feature.settings.BackgroundScreen
+import app.podium.feature.settings.ColorTarget
+import app.podium.feature.settings.CustomColorScreen
+import app.podium.feature.settings.DeviceBodyScreen
+import app.podium.feature.settings.FinishScreen
+import app.podium.feature.settings.FontScreen
+import app.podium.feature.settings.LevelScreen
+import app.podium.feature.settings.LyricsFontScreen
+import app.podium.feature.settings.LyricsThemeScreen
+import app.podium.space.LocalPodiumSpace
+import app.podium.space.HelpContent
+import app.podium.space.StickerDetail
+import app.podium.space.StickerGallery
+import app.podium.stickers.Sticker
+import app.podium.stickers.StickerEditor
+import app.podium.stickers.StickerEditorBar
+import app.podium.stickers.StickerEditorState
+import app.podium.stickers.StickerLayer
+import app.podium.radio.radioCategoryLabel
+import app.podium.stickers.StickerMaker
+import app.podium.guide.GuideTour
+import app.podium.guide.GuideState
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import app.podium.core.interaction.LocalHapticEngine
+import app.podium.core.interaction.HapticEngine
+import app.podium.core.interaction.rememberPodiumHaptics
+import app.podium.space.SpacePanel
+import app.podium.space.SpacePhase
+import app.podium.space.SpacePage
+import app.podium.space.rememberPodiumSpaceState
+import app.podium.space.PodiumSpace
+import app.podium.feature.settings.MusicFoldersScreen
+import app.podium.feature.settings.OnlineServiceScreen
+import app.podium.feature.settings.SettingsScreen
+import app.podium.feature.settings.ThemeScreen
+import app.podium.feature.settings.VirtualDisplayScreen
+import app.podium.player.api.PlayIntent
+import app.podium.player.api.PlaybackController
+import app.podium.player.api.PlaybackSnapshot
+import app.podium.player.api.RecommendationRequest
+import app.podium.sources.api.ArtistSummary
+import app.podium.sources.api.CapabilityAction
+import app.podium.sources.api.MusicEnvironment
+import app.podium.sources.api.RemoteContext
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+
+/**
+ * Places on the paper (D-29): the hierarchy inside the screen. Album and Artist carry their ids,
+ * so they survive process death through [BackStackSaver] like everything else.
+ */
+sealed interface Dest {
+    data object Home : Dest
+    data object Music : Dest
+    data object CoverFlow : Dest
+    data object Albums : Dest
+    data object Artists : Dest
+    data object Songs : Dest
+    data object Favorites : Dest
+
+    /** Music ▸ Playlists (D-106), one playlist, adding songs to it, and naming one. */
+    data object Playlists : Dest
+    data class Playlist(val id: String, val name: String) : Dest
+    data class AddSongs(val playlistId: String) : Dest
+    data class NamePlaylist(val playlistId: String? = null, val currentName: String = "") : Dest
+    data object NowPlaying : Dest
+    data object UpNext : Dest
+
+    /** Now Playing ▸ Lyrics: the whole display is the lyric (no header, no mini player). */
+    data object Lyrics : Dest
+    data object Settings : Dest
+    data object Language : Dest
+
+    /** Settings ▸ Appearance (D-41) and its two halves. */
+    data object Appearance : Dest
+    data object DeviceBody : Dest
+    data object VirtualDisplay : Dest
+    data object Theme : Dest
+    data object Font : Dest
+    data object LyricsFont : Dest
+
+    /** Settings ▸ Appearance ▸ Virtual display ▸ Lyrics theme (D-81). */
+    data object LyricsTheme : Dest
+    data object Background : Dest
+    data object Finish : Dest
+    data object CustomColor : Dest
+
+    /** The display's background colour, in the colour editor. */
+    data object DisplayColor : Dest
+
+    /** A 0–1 level edited with the Wheel (grain, glitter, background opacity). */
+    data class Level(val level: AppearanceLevel) : Dest
+
+    /** Settings ▸ the online music service (D-38): account, the app that plays, hand-off. */
+    data object OnlineSources : Dest
+
+    /** Settings ▸ the online music service ▸ Channel (D-86). */
+    data object OnlineChannel : Dest
+
+    /** Settings ▸ Custom sources (D-91), adding one, one source, and one of its text settings. */
+    data object CustomSources : Dest
+    data object AddCustomSource : Dest
+    data class CustomSource(val id: String) : Dest
+    data class CustomSourceOption(val id: String, val key: String) : Dest
+    data class Album(val id: AlbumId) : Dest
+    data class Artist(val id: ArtistId) : Dest
+
+    /** A level of the music-folder tree in Settings ("" is the top). */
+    data class MusicFolders(val path: String) : Dest
+
+    /** Settings ▸ Equaliser (D-76), and one of its bands. */
+    data object Equalizer : Dest
+    data class EqualizerBand(val band: Int) : Dest
+
+    /** A place in the ONLINE section (D-34). */
+    data class Online(val place: OnlinePlace) : Dest
+
+    /** Listen Together: local-network synchronized listening, 4-digit tumbler code, and IP entry. */
+    data object ListenTogether : Dest
+    data class JoinTogetherCode(val host: String, val port: Int, val name: String) : Dest
+    data object JoinTogetherAddress : Dest
+
+    /** Online Radio (curated Tunisian FM + worldwide Radio Browser directory). */
+    data class Radio(val place: app.podium.radio.RadioPlace = app.podium.radio.RadioPlace.Menu) : Dest
+
+    /** In-app mini browser for radio station websites / live webcams / news. */
+    data class RadioWeb(val url: String, val title: String) : Dest
+
+    /** Podcasts: Apple Podcasts / iTunes & Podcast Index directory and episodes. */
+    data class Podcasts(val place: app.podium.podcast.PodcastPlace = app.podium.podcast.PodcastPlace.Menu) : Dest
+
+    /** Holy Quran: Quran.com API with synchronized Mosshaf & reciters. */
+    data class Quran(val place: app.podium.quran.QuranPlace = app.podium.quran.QuranPlace.Menu) : Dest
+
+    /** SoundCloud: direct streaming, likes, playlists, stream & charts. */
+    data class SoundCloud(val place: app.podium.soundcloud.SoundCloudPlace = app.podium.soundcloud.SoundCloudPlace.Menu) : Dest
+
+    /** YouTube: ad-blocked browser with background playback. */
+    data object YouTube : Dest
+
+    /** Gallery: Cover Flow photos, albums, videos, folders, search, editor & Telegram sync. */
+    data class Gallery(val place: app.podium.gallery.GalleryPlace = app.podium.gallery.GalleryPlace.Menu) : Dest
+
+    /** Books: Librera-style Cover Flow book reader (PDF, EPUB, TXT, FB2, CBZ & Online Library). */
+    data class Books(val place: app.podium.books.BookPlace = app.podium.books.BookPlace.Menu) : Dest
+
+    /** Clock: World Clock, WakeIQ smart music alarms, Stopwatch & Timer. */
+    data class Clock(val place: app.podium.clock.ClockPlace = app.podium.clock.ClockPlace.Menu) : Dest
+
+    /** Offline downloaded songs, artwork, and Smart Downloads. */
+    data object Downloads : Dest
+    data object DownloadsCoverFlow : Dest
+
+    /** Voice Memos (like the iPod's): record, play, rename, share and delete. */
+    data object VoiceMemos : Dest
+    data object Insights : Dest
+    data class RenameVoiceMemo(val uri: String, val currentName: String) : Dest
+
+    /** Local music metadata and lyrics editors. */
+    data class EditLocalSong(val trackId: TrackId) : Dest
+    data class EditLocalAlbum(val albumId: AlbumId, val currentTitle: String, val currentArtist: String) : Dest
+    data class EditLocalArtist(val artistId: ArtistId, val currentName: String) : Dest
+}
+
+private val fixedDests = listOf(
+    Dest.Home, Dest.Music, Dest.CoverFlow, Dest.Albums, Dest.Artists, Dest.Songs, Dest.Favorites, Dest.Playlists, Dest.NowPlaying,
+    Dest.UpNext, Dest.Lyrics, Dest.Settings, Dest.Language, Dest.Appearance, Dest.DeviceBody, Dest.VirtualDisplay, Dest.Theme, Dest.Font,
+    Dest.LyricsFont, Dest.LyricsTheme, Dest.Background, Dest.Finish, Dest.CustomColor, Dest.DisplayColor, Dest.OnlineSources, Dest.OnlineChannel, Dest.Equalizer,
+    Dest.CustomSources, Dest.AddCustomSource, Dest.ListenTogether, Dest.JoinTogetherAddress, Dest.Downloads, Dest.DownloadsCoverFlow,
+    Dest.VoiceMemos,
+    Dest.Insights,
+).associateBy { it.toString() }
+
+private fun Dest.encode(): String = when (this) {
+    is Dest.Album -> "Album:${id.value}"
+    is Dest.Artist -> "Artist:${id.value}"
+    is Dest.MusicFolders -> "MusicFolders:$path"
+    is Dest.RenameVoiceMemo -> "RenameVoiceMemo:$uri\u0000$currentName"
+    is Dest.Online -> "Online:" + OnlinePlace.encode(place)
+    is Dest.Radio -> "Radio:" + app.podium.radio.RadioPlace.encode(place)
+    is Dest.RadioWeb -> "RadioWeb:$url\u0000$title"
+    is Dest.Podcasts -> "Podcasts:" + app.podium.podcast.PodcastPlace.encode(place)
+    is Dest.Quran -> "Quran:" + app.podium.quran.QuranPlace.encode(place)
+    is Dest.SoundCloud -> "SoundCloud:" + app.podium.soundcloud.SoundCloudPlace.encode(place)
+    is Dest.YouTube -> "YouTube"
+    is Dest.Gallery -> "Gallery:" + app.podium.gallery.GalleryPlace.encode(place)
+    is Dest.Books -> "Books:" + app.podium.books.BookPlace.encode(place)
+    is Dest.Clock -> "Clock:" + app.podium.clock.ClockPlace.encode(place)
+    is Dest.Level -> "Level:${level.name}"
+    is Dest.EqualizerBand -> "EqualizerBand:$band"
+    is Dest.CustomSource -> "CustomSource:$id"
+    is Dest.CustomSourceOption -> "CustomSourceOption:$id\u0000$key"
+    is Dest.Playlist -> "Playlist:$id\u0000$name"
+    is Dest.AddSongs -> "AddSongs:$playlistId"
+    is Dest.NamePlaylist -> "NamePlaylist:${playlistId.orEmpty()}\u0000$currentName"
+    is Dest.JoinTogetherCode -> "JoinTogetherCode:$host\u0000$port\u0000$name"
+    is Dest.EditLocalSong -> "EditLocalSong:${trackId.value}"
+    is Dest.EditLocalAlbum -> "EditLocalAlbum:${albumId.value}\u0000$currentTitle\u0000$currentArtist"
+    is Dest.EditLocalArtist -> "EditLocalArtist:${artistId.value}\u0000$currentName"
+    else -> toString()
+}
+
+private fun decodeDest(text: String): Dest? = when {
+    text.startsWith("Album:") -> Dest.Album(AlbumId(text.removePrefix("Album:")))
+    text.startsWith("Artist:") -> Dest.Artist(ArtistId(text.removePrefix("Artist:")))
+    text.startsWith("MusicFolders:") -> Dest.MusicFolders(text.removePrefix("MusicFolders:"))
+    text.startsWith("Online:") -> OnlinePlace.decode(text.removePrefix("Online:"))?.let(Dest::Online)
+    text.startsWith("Radio:") -> app.podium.radio.RadioPlace.decode(text.removePrefix("Radio:"))?.let(Dest::Radio)
+    text.startsWith("RadioWeb:") -> text.removePrefix("RadioWeb:").split('\u0000', limit = 2).takeIf { it.size == 2 }
+        ?.let { (url, title) -> Dest.RadioWeb(url, title) }
+    text.startsWith("Podcasts:") -> app.podium.podcast.PodcastPlace.decode(text.removePrefix("Podcasts:"))?.let(Dest::Podcasts)
+    text.startsWith("Quran:") -> app.podium.quran.QuranPlace.decode(text.removePrefix("Quran:")).let(Dest::Quran)
+    text.startsWith("SoundCloud:") -> app.podium.soundcloud.SoundCloudPlace.decode(text.removePrefix("SoundCloud:")).let(Dest::SoundCloud)
+    text == "YouTube" -> Dest.YouTube
+    text.startsWith("Gallery:") -> app.podium.gallery.GalleryPlace.decode(text.removePrefix("Gallery:")).let(Dest::Gallery)
+    text.startsWith("Books:") -> app.podium.books.BookPlace.decode(text.removePrefix("Books:")).let(Dest::Books)
+    text.startsWith("Clock:") -> app.podium.clock.ClockPlace.decode(text.removePrefix("Clock:")).let(Dest::Clock)
+    text.startsWith("Level:") -> AppearanceLevel.entries.firstOrNull { it.name == text.removePrefix("Level:") }?.let(Dest::Level)
+    text.startsWith("EqualizerBand:") -> text.removePrefix("EqualizerBand:").toIntOrNull()
+        ?.takeIf { it in app.podium.player.api.EqualizerSettings.BANDS_HZ.indices }?.let(Dest::EqualizerBand)
+    text.startsWith("CustomSource:") -> Dest.CustomSource(text.removePrefix("CustomSource:"))
+    text.startsWith("CustomSourceOption:") -> text.removePrefix("CustomSourceOption:").split('\u0000').takeIf { it.size == 2 }
+        ?.let { (id, key) -> Dest.CustomSourceOption(id, key) }
+    text.startsWith("Playlist:") -> text.removePrefix("Playlist:").split('\u0000', limit = 2).takeIf { it.size == 2 }
+        ?.let { (id, name) -> Dest.Playlist(id, name) }
+    text.startsWith("AddSongs:") -> Dest.AddSongs(text.removePrefix("AddSongs:"))
+    text.startsWith("NamePlaylist:") -> text.removePrefix("NamePlaylist:").split('\u0000', limit = 2).takeIf { it.size == 2 }
+        ?.let { (id, name) -> Dest.NamePlaylist(id.ifEmpty { null }, name) }
+    text.startsWith("JoinTogetherCode:") -> text.removePrefix("JoinTogetherCode:").split('\u0000', limit = 3).takeIf { it.size == 3 }
+        ?.let { (h, p, n) -> p.toIntOrNull()?.let { port -> Dest.JoinTogetherCode(h, port, n) } }
+    text.startsWith("EditLocalSong:") -> Dest.EditLocalSong(TrackId(text.removePrefix("EditLocalSong:")))
+    text.startsWith("EditLocalAlbum:") -> text.removePrefix("EditLocalAlbum:").split('\u0000', limit = 3).takeIf { it.size == 3 }
+        ?.let { (id, t, a) -> Dest.EditLocalAlbum(AlbumId(id), t, a) }
+    text.startsWith("EditLocalArtist:") -> text.removePrefix("EditLocalArtist:").split('\u0000', limit = 2).takeIf { it.size == 2 }
+        ?.let { (id, n) -> Dest.EditLocalArtist(ArtistId(id), n) }
+    text.startsWith("RenameVoiceMemo:") -> text.removePrefix("RenameVoiceMemo:").split('\u0000', limit = 2).takeIf { it.size == 2 }
+        ?.let { (u, n) -> Dest.RenameVoiceMemo(u, n) }
+    else -> fixedDests[text]
+}
+
+private val BackStackSaver = listSaver<SnapshotStateList<Dest>, String>(
+    save = { stack -> stack.map { it.encode() } },
+    restore = { names -> mutableStateListOf(*names.mapNotNull(::decodeDest).ifEmpty { listOf(Dest.Home) }.toTypedArray()) },
+)
+
+/** Dynamic icon for the header across the root menu and every sub-tab. */
+private fun headerIconOf(
+    dest: Dest,
+    focusedKey: String?,
+    focusedLabel: String?,
+    strings: app.podium.core.designsystem.l10n.AppStrings,
+): HomeMenuIconKind {
+    // 1. Check focused item key (enum/structural keys in settings & sub-menus)
+    when (focusedKey) {
+        "Language", "en", "ar", "fr", "tr", "ru", "system" -> return HomeMenuIconKind.Language
+        "Appearance", "CustomColor", "BackgroundColor", "Finish" -> return HomeMenuIconKind.Appearance
+        "DeviceBody", "Grain", "Glitter", "GlitterAmount", "GlitterGlow", "GlitterTilt", "GlitterDensity", "GlitterSize", "GlitterOpacity" -> return HomeMenuIconKind.Sparkle
+        "VirtualDisplay", "Theme", "LyricsTheme" -> return HomeMenuIconKind.Contrast
+        "Font", "LyricsFont", "Keyboard" -> return HomeMenuIconKind.Font
+        "Background", "LyricsBackground", "BackgroundOpacity" -> return HomeMenuIconKind.Gallery
+        "PodiumSpace", "FullScreen", "TitleBarBattery", "NowPlayingLayout", "HideNowPlayingTray" -> return HomeMenuIconKind.Power
+        "MusicFolders", "all", "here" -> return HomeMenuIconKind.Folder
+        "OnlineSources", "CustomSources" -> return HomeMenuIconKind.YtMusic
+        "SmartDownloads" -> return HomeMenuIconKind.Downloads
+        "Autoplay", "Recommendations", "AvoidRepeats", "Crossfade" -> return HomeMenuIconKind.Shuffle
+        "Equalizer" -> return HomeMenuIconKind.NowPlaying
+        "SleepTimer" -> return HomeMenuIconKind.Clock
+        "OnlineLyrics", "LyricsCredit" -> return HomeMenuIconKind.Lyrics
+        "Haptics", "Clicks", "StartupSound" -> return HomeMenuIconKind.Speaker
+        "SoftwareUpdate", "translation_settings" -> return HomeMenuIconKind.Settings
+        "surahs", "continue" -> return HomeMenuIconKind.Quran
+        "tarjama" -> return HomeMenuIconKind.Books
+        "reciters" -> return HomeMenuIconKind.ListenTogether
+        "search" -> return HomeMenuIconKind.Search
+        "bookmarks" -> return HomeMenuIconKind.Favorites
+    }
+    // 2. Check focused row label (or focusedKey when key == label, e.g. PaperMenu)
+    for (candidate in listOfNotNull(focusedLabel, focusedKey)) {
+        when (candidate) {
+            strings.music, strings.songs -> return HomeMenuIconKind.Music
+            strings.online, strings.onlineSources, strings.onlineMusic, strings.home -> return HomeMenuIconKind.YtMusic
+            strings.coverFlow -> return HomeMenuIconKind.CoverFlow
+            strings.albums -> return HomeMenuIconKind.Albums
+            strings.artists -> return HomeMenuIconKind.Artists
+            strings.favorites, strings.likedSongs, strings.likes -> return HomeMenuIconKind.Favorites
+            strings.playlists, strings.newPlaylist -> return HomeMenuIconKind.Playlists
+            strings.downloads, strings.smartDownloads -> return HomeMenuIconKind.Downloads
+            strings.search, strings.searchSoundCloud -> return HomeMenuIconKind.Search
+            strings.explore, strings.topCharts -> return HomeMenuIconKind.Explore
+            strings.history, strings.playedOnPodium -> return HomeMenuIconKind.History
+            strings.library -> return HomeMenuIconKind.Library
+            strings.radio, strings.liveRadio -> return HomeMenuIconKind.Radio
+            strings.podcasts -> return HomeMenuIconKind.Podcasts
+            strings.quran -> return HomeMenuIconKind.Quran
+            strings.soundCloud, strings.stream -> return HomeMenuIconKind.SoundCloud
+            strings.youTube -> return HomeMenuIconKind.YouTube
+            strings.gallery -> return HomeMenuIconKind.Gallery
+            strings.books -> return HomeMenuIconKind.Books
+            strings.clock, strings.sleepTimer -> return HomeMenuIconKind.Clock
+            strings.listenTogether -> return HomeMenuIconKind.ListenTogether
+            strings.voiceMemos -> return HomeMenuIconKind.VoiceMemos
+            strings.insights -> return HomeMenuIconKind.Insights
+            strings.shuffleSongs -> return HomeMenuIconKind.Shuffle
+            strings.nowPlaying, strings.equalizer -> return HomeMenuIconKind.NowPlaying
+            strings.settings -> return HomeMenuIconKind.Settings
+            strings.language -> return HomeMenuIconKind.Language
+            strings.appearance, strings.customColor, strings.backgroundColor, strings.finish -> return HomeMenuIconKind.Appearance
+            strings.deviceBody, strings.glitter, strings.glitterAmount, strings.glitterGlow, strings.glitterDensity, strings.glitterSize, strings.glitterOpacity, strings.grain, strings.followTilt -> return HomeMenuIconKind.Sparkle
+            strings.virtualDisplay, strings.theme, strings.lyricsTheme -> return HomeMenuIconKind.Contrast
+            strings.font, strings.lyricsFont -> return HomeMenuIconKind.Font
+            strings.background, strings.lyricsBackground, strings.backgroundOpacity -> return HomeMenuIconKind.Gallery
+            strings.musicFolders, strings.allFolders -> return HomeMenuIconKind.Folder
+            strings.onlineLyrics, strings.lyrics -> return HomeMenuIconKind.Lyrics
+        }
+    }
+    // 3. Fallback to the current sub-tab destination's own icon
+    return when (dest) {
+        Dest.Home, Dest.Music, Dest.Songs, is Dest.EditLocalSong -> HomeMenuIconKind.Music
+        Dest.CoverFlow, Dest.DownloadsCoverFlow -> HomeMenuIconKind.CoverFlow
+        Dest.Albums, is Dest.Album, is Dest.EditLocalAlbum -> HomeMenuIconKind.Albums
+        Dest.Artists, is Dest.Artist, is Dest.EditLocalArtist -> HomeMenuIconKind.Artists
+        Dest.Favorites -> HomeMenuIconKind.Favorites
+        Dest.Playlists, is Dest.Playlist, is Dest.AddSongs, is Dest.NamePlaylist -> HomeMenuIconKind.Playlists
+        Dest.Downloads -> HomeMenuIconKind.Downloads
+        Dest.NowPlaying, Dest.UpNext, Dest.Equalizer, is Dest.EqualizerBand -> HomeMenuIconKind.NowPlaying
+        Dest.Lyrics -> HomeMenuIconKind.Lyrics
+        Dest.Settings -> HomeMenuIconKind.Settings
+        Dest.Language -> HomeMenuIconKind.Language
+        is Dest.MusicFolders -> HomeMenuIconKind.Folder
+        Dest.Appearance, Dest.Finish, Dest.CustomColor, Dest.DisplayColor -> HomeMenuIconKind.Appearance
+        Dest.DeviceBody, is Dest.Level -> HomeMenuIconKind.Sparkle
+        Dest.VirtualDisplay, Dest.Theme, Dest.LyricsTheme -> HomeMenuIconKind.Contrast
+        Dest.Font, Dest.LyricsFont -> HomeMenuIconKind.Font
+        Dest.Background -> HomeMenuIconKind.Gallery
+        Dest.OnlineSources, Dest.OnlineChannel, Dest.CustomSources, Dest.AddCustomSource, is Dest.CustomSource, is Dest.CustomSourceOption -> HomeMenuIconKind.YtMusic
+        is Dest.Online -> when (dest.place) {
+            app.podium.feature.online.OnlinePlace.CoverFlow -> HomeMenuIconKind.CoverFlow
+            app.podium.feature.online.OnlinePlace.Search -> HomeMenuIconKind.Search
+            app.podium.feature.online.OnlinePlace.Explore -> HomeMenuIconKind.Explore
+            app.podium.feature.online.OnlinePlace.Liked -> HomeMenuIconKind.Favorites
+            app.podium.feature.online.OnlinePlace.Playlists,
+            app.podium.feature.online.OnlinePlace.LibraryPlaylists,
+            is app.podium.feature.online.OnlinePlace.NamePlaylist -> HomeMenuIconKind.Playlists
+            app.podium.feature.online.OnlinePlace.LibraryAlbums -> HomeMenuIconKind.Albums
+            app.podium.feature.online.OnlinePlace.LibraryArtists,
+            is app.podium.feature.online.OnlinePlace.Artist -> HomeMenuIconKind.Artists
+            app.podium.feature.online.OnlinePlace.Radio,
+            app.podium.feature.online.OnlinePlace.LiveRadio -> HomeMenuIconKind.Radio
+            app.podium.feature.online.OnlinePlace.History,
+            app.podium.feature.online.OnlinePlace.Recent -> HomeMenuIconKind.History
+            app.podium.feature.online.OnlinePlace.Library -> HomeMenuIconKind.Library
+            else -> HomeMenuIconKind.YtMusic
+        }
+        is Dest.Radio, is Dest.RadioWeb -> HomeMenuIconKind.Radio
+        is Dest.Podcasts -> HomeMenuIconKind.Podcasts
+        is Dest.Quran -> HomeMenuIconKind.Quran
+        is Dest.SoundCloud -> HomeMenuIconKind.SoundCloud
+        Dest.YouTube -> HomeMenuIconKind.YouTube
+        is Dest.Gallery -> HomeMenuIconKind.Gallery
+        is Dest.Books -> HomeMenuIconKind.Books
+        is Dest.Clock -> HomeMenuIconKind.Clock
+        Dest.ListenTogether, Dest.JoinTogetherAddress, is Dest.JoinTogetherCode -> HomeMenuIconKind.ListenTogether
+        Dest.VoiceMemos, is Dest.RenameVoiceMemo -> HomeMenuIconKind.VoiceMemos
+        Dest.Insights -> HomeMenuIconKind.Insights
+    }
+}
+
+/** The header title for a place on the paper. */
+@Composable
+private fun titleOf(dest: Dest, graph: AppGraph): String {
+    val strings = LocalAppStrings.current
+    return when (dest) {
+        Dest.Home -> strings.appName
+        Dest.Music -> strings.music
+        Dest.CoverFlow -> strings.coverFlow
+        Dest.Albums -> strings.albums
+        Dest.Artists -> strings.artists
+        Dest.Songs -> strings.songs
+        Dest.Favorites -> strings.favorites
+        Dest.Playlists -> strings.playlists
+        is Dest.Playlist -> graph.playlists.playlists.collectAsStateWithLifecycle().value?.firstOrNull { it.id == dest.id }?.name ?: dest.name
+        is Dest.AddSongs -> strings.addSongs
+        is Dest.NamePlaylist -> if (dest.playlistId == null) strings.newPlaylist else strings.rename
+        Dest.NowPlaying -> strings.nowPlaying
+        Dest.UpNext -> strings.upNext
+        Dest.Lyrics -> strings.lyrics
+        Dest.Settings -> strings.settings
+        Dest.Language -> strings.language
+        is Dest.MusicFolders -> if (dest.path.isEmpty()) strings.musicFolders else dest.path.trimEnd('/').substringAfterLast('/')
+        is Dest.Online -> when (val p = dest.place) {
+            app.podium.feature.online.OnlinePlace.Menu -> strings.online
+            app.podium.feature.online.OnlinePlace.CoverFlow -> strings.coverFlow
+            app.podium.feature.online.OnlinePlace.Home -> strings.home
+            app.podium.feature.online.OnlinePlace.Explore -> strings.explore
+            app.podium.feature.online.OnlinePlace.Search -> strings.search
+            app.podium.feature.online.OnlinePlace.Liked -> strings.likedSongs
+            app.podium.feature.online.OnlinePlace.Playlists -> strings.playlists
+            app.podium.feature.online.OnlinePlace.Radio -> strings.radio
+            app.podium.feature.online.OnlinePlace.LiveRadio -> strings.liveRadio
+            app.podium.feature.online.OnlinePlace.History -> strings.history
+            app.podium.feature.online.OnlinePlace.Recent -> strings.playedOnPodium
+            app.podium.feature.online.OnlinePlace.Library -> strings.library
+            app.podium.feature.online.OnlinePlace.LibraryPlaylists -> strings.playlists
+            app.podium.feature.online.OnlinePlace.LibraryAlbums -> strings.albums
+            app.podium.feature.online.OnlinePlace.LibraryArtists -> strings.artists
+            is app.podium.feature.online.OnlinePlace.NamePlaylist -> if (p.playlistId == null) strings.newPlaylist else strings.rename
+            else -> p.title
+        }
+        Dest.Appearance -> strings.appearance
+        Dest.DeviceBody -> strings.deviceBody
+        Dest.VirtualDisplay -> strings.virtualDisplay
+        Dest.Theme -> strings.theme
+        Dest.Font -> strings.font
+        Dest.LyricsFont -> strings.lyricsFont
+        Dest.LyricsTheme -> strings.lyricsTheme
+        Dest.Background -> strings.background
+        Dest.Finish -> strings.finish
+        Dest.CustomColor -> strings.customColor
+        Dest.DisplayColor -> strings.backgroundColor
+        is Dest.Level -> when (dest.level) {
+            app.podium.feature.settings.AppearanceLevel.Grain -> strings.grain
+            app.podium.feature.settings.AppearanceLevel.GlitterAmount -> strings.glitterAmount
+            app.podium.feature.settings.AppearanceLevel.GlitterGlow -> strings.glitterGlow
+            app.podium.feature.settings.AppearanceLevel.GlitterDensity -> strings.glitterDensity
+            app.podium.feature.settings.AppearanceLevel.GlitterSize -> strings.glitterSize
+            app.podium.feature.settings.AppearanceLevel.GlitterOpacity -> strings.glitterOpacity
+            app.podium.feature.settings.AppearanceLevel.BackgroundOpacity -> strings.backgroundOpacity
+        }
+        Dest.Equalizer -> strings.equalizer
+        is Dest.EqualizerBand -> app.podium.feature.settings.bandLabel(dest.band)
+        Dest.OnlineSources -> graph.onlineService.state.collectAsStateWithLifecycle().value?.name ?: strings.onlineSources
+        Dest.OnlineChannel -> strings.channel
+        Dest.CustomSources -> strings.customSources
+        Dest.AddCustomSource -> strings.addSource
+        is Dest.CustomSource -> graph.customSources.sources.collectAsStateWithLifecycle().value.firstOrNull { it.id == dest.id }?.name ?: strings.source
+        is Dest.CustomSourceOption -> graph.customSources.sources.collectAsStateWithLifecycle().value
+            .firstOrNull { it.id == dest.id }?.options?.firstOrNull { it.key == dest.key }?.label ?: strings.settings
+        is Dest.Album -> {
+            val album by remember(dest) { graph.library.album(dest.id) }.collectAsStateWithLifecycle(initialValue = null)
+            album?.album?.title ?: strings.albums
+        }
+        is Dest.Artist -> {
+            val artist by remember(dest) { graph.library.artist(dest.id) }.collectAsStateWithLifecycle(initialValue = null)
+            artist?.artist?.name ?: strings.artists
+        }
+        Dest.ListenTogether -> strings.listenTogether
+        is Dest.JoinTogetherCode -> strings.sessionCode
+        Dest.JoinTogetherAddress -> strings.hostAddress
+        is Dest.Radio -> when (val p = dest.place) {
+            app.podium.radio.RadioPlace.Menu -> strings.radio
+            app.podium.radio.RadioPlace.CoverFlow -> strings.coverFlow
+            app.podium.radio.RadioPlace.Search -> strings.search
+            is app.podium.radio.RadioPlace.Category -> strings.radioCategoryLabel(p.category)
+            app.podium.radio.RadioPlace.AddCustom -> strings.addCustomStation
+            is app.podium.radio.RadioPlace.EditStation -> strings.edit
+        }
+        is Dest.RadioWeb -> dest.title
+        is Dest.Podcasts -> when (dest.place) {
+            app.podium.podcast.PodcastPlace.Menu -> strings.podcasts
+            is app.podium.podcast.PodcastPlace.Top -> strings.topPodcasts
+            app.podium.podcast.PodcastPlace.Search -> strings.searchPodcasts
+            app.podium.podcast.PodcastPlace.Subscriptions -> strings.subscriptions
+            app.podium.podcast.PodcastPlace.Categories -> strings.categories
+            app.podium.podcast.PodcastPlace.AddRss -> strings.addByRss
+            app.podium.podcast.PodcastPlace.RecentEpisodes -> strings.recentEpisodes
+            app.podium.podcast.PodcastPlace.Settings -> strings.podcastSettings
+            else -> dest.place.title
+        }
+        is Dest.Quran -> when (dest.place) {
+            app.podium.quran.QuranPlace.Menu -> strings.quran
+            app.podium.quran.QuranPlace.SurahsList -> strings.quran
+            app.podium.quran.QuranPlace.TarjamaSurahsList -> strings.tafsirAndTranslation
+            app.podium.quran.QuranPlace.RecitersList -> strings.reciters
+            app.podium.quran.QuranPlace.TranslationSettings -> strings.tafsirAndTranslation
+            app.podium.quran.QuranPlace.Search -> strings.searchQuran
+            app.podium.quran.QuranPlace.Bookmarks -> strings.bookmarks
+            else -> dest.place.title
+        }
+        is Dest.SoundCloud -> when (val p = dest.place) {
+            app.podium.soundcloud.SoundCloudPlace.Menu -> "SoundCloud"
+            app.podium.soundcloud.SoundCloudPlace.WebLogin -> strings.signInToSoundCloud
+            app.podium.soundcloud.SoundCloudPlace.Stream -> strings.stream
+            app.podium.soundcloud.SoundCloudPlace.Likes -> strings.likes
+            app.podium.soundcloud.SoundCloudPlace.Playlists -> strings.playlists
+            app.podium.soundcloud.SoundCloudPlace.Charts -> strings.topCharts
+            app.podium.soundcloud.SoundCloudPlace.Search -> strings.searchSoundCloud
+            else -> p.title
+        }
+        is Dest.YouTube -> "YouTube"
+        is Dest.Gallery -> when (dest.place) {
+            app.podium.gallery.GalleryPlace.Menu -> strings.gallery
+            app.podium.gallery.GalleryPlace.PhotosCoverFlow -> strings.photos
+            app.podium.gallery.GalleryPlace.AlbumsCoverFlow -> strings.albums
+            app.podium.gallery.GalleryPlace.VideosCoverFlow -> strings.videos
+            app.podium.gallery.GalleryPlace.FoldersCoverFlow -> strings.folders
+            app.podium.gallery.GalleryPlace.FavoritesCoverFlow -> strings.favorites
+            app.podium.gallery.GalleryPlace.TrashCoverFlow -> strings.trash
+            app.podium.gallery.GalleryPlace.Search -> strings.search
+            else -> dest.place.title
+        }
+        is Dest.Books -> when (dest.place) {
+            app.podium.books.BookPlace.Menu -> strings.books
+            app.podium.books.BookPlace.AllBooksCoverFlow -> strings.allBooks
+            app.podium.books.BookPlace.ContinueReadingCoverFlow -> strings.continueReading
+            app.podium.books.BookPlace.QuranBooksCoverFlow -> strings.quran
+            app.podium.books.BookPlace.IslamicBooksCoverFlow -> strings.islamicBooks
+            app.podium.books.BookPlace.OnlineCatalogCoverFlow -> strings.arabicBooks
+            app.podium.books.BookPlace.FoldersCoverFlow -> strings.folders
+            app.podium.books.BookPlace.FavoritesCoverFlow -> strings.favorites
+            app.podium.books.BookPlace.BookmarksList -> strings.bookmarks
+            app.podium.books.BookPlace.SearchCoverFlow -> strings.search
+            else -> dest.place.title
+        }
+        is Dest.Clock -> when (dest.place) {
+            app.podium.clock.ClockPlace.Menu -> strings.clock
+            app.podium.clock.ClockPlace.WorldClock -> strings.worldClock
+            app.podium.clock.ClockPlace.AlarmsList -> strings.alarms
+            app.podium.clock.ClockPlace.Stopwatch -> strings.stopwatch
+            app.podium.clock.ClockPlace.Timer -> strings.timer
+            else -> dest.place.title
+        }
+        Dest.Downloads -> strings.downloads
+        Dest.DownloadsCoverFlow -> strings.coverFlow
+        Dest.VoiceMemos -> strings.voiceMemos
+        Dest.Insights -> strings.insights
+        is Dest.RenameVoiceMemo -> strings.rename
+        is Dest.EditLocalSong -> strings.editSong
+        is Dest.EditLocalAlbum -> strings.editAlbum
+        is Dest.EditLocalArtist -> strings.editArtist
+    }
+}
+
+/**
+ * The device (D-26). The window is the device's body in the chosen finish; a recessed virtual
+ * screen above the Wheel holds the whole interface; a small power button sits beside the Wheel.
+ * All input reaches screens through the [InputRouter]; anything a screen doesn't consume falls
+ * through to the global handlers here.
+ */
+@Composable
+fun PodiumApp(graph: AppGraph, onSourceAction: (CapabilityAction) -> Unit, onTurnOff: () -> Unit = {}) {
+    val language by graph.deviceSettings.language.collectAsStateWithLifecycle()
+    val appearance by graph.deviceSettings.appearance.collectAsStateWithLifecycle()
+    val preview by graph.deviceSettings.preview.collectAsStateWithLifecycle()
+    val effective = preview ?: appearance
+    val displayImage by graph.displayImages.state.collectAsStateWithLifecycle()
+    LaunchedEffect(effective.screen.imageUri) { graph.displayImages.show(effective.screen.imageUri) }
+    ProvideAppL10n(language = language) {
+        PodiumTheme(
+            displayTheme = effective.display,
+            display = effective.screen,
+            displayImage = displayImage.image?.takeIf { displayImage.uri == effective.screen.imageUri },
+        ) {
+        val controller = graph.playbackController
+        val snapshot by controller.snapshot.collectAsStateWithLifecycle()
+        val power by graph.power.collectAsStateWithLifecycle()
+        // Where the music is heard (D-52). A route switched in the system's output picker sends no
+        // event, so it's looked at again every few seconds while Podium is in front.
+        val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+        LaunchedEffect(lifecycle) {
+            lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+                while (true) {
+                    graph.audioOutput.refresh()
+                    kotlinx.coroutines.delay(OUTPUT_REFRESH_MS)
+                }
+            }
+        }
+        val colors = PodiumTheme.colors
+        val palette = effective.palette(colors.isDark)
+
+        val backStack = rememberSaveable(saver = BackStackSaver) { mutableStateListOf<Dest>(Dest.Home) }
+        val navigator = remember(backStack) { Navigator(backStack) }
+        // Debug builds: open a screen from adb (device tests that must not turn the Wheel).
+        LaunchedEffect(navigator) {
+            graph.debugOpen.collect { place ->
+                when (place) {
+                    "now-playing" -> navigator.push(Dest.NowPlaying)
+                    "lyrics" -> {
+                        navigator.push(Dest.NowPlaying)
+                        navigator.push(Dest.Lyrics)
+                    }
+                    "home" -> while (navigator.pop()) Unit
+                    "songs" -> {
+                        while (navigator.pop()) Unit
+                        navigator.push(Dest.Music)
+                        navigator.push(Dest.Songs)
+                    }
+                    "playlists" -> {
+                        while (navigator.pop()) Unit
+                        navigator.push(Dest.Music)
+                        navigator.push(Dest.Playlists)
+                    }
+                }
+                if (place != null) graph.debugOpen.value = null
+            }
+        }
+        val router = remember { InputRouter() }
+        val overlay = remember { OverlayHost() }
+        // A moment that takes the whole display (D-104): Now Playing's vinyl.
+        val immersive = remember { ImmersiveHost() }
+        // Typing (D-45): fields open the Podium keyboard where the Wheel is, or the phone's.
+        val keyboard = remember { KeyboardHost() }
+        val podiumKeyboard by graph.deviceSettings.podiumKeyboard.collectAsStateWithLifecycle()
+        val hapticProfile by graph.deviceSettings.hapticProfile.collectAsStateWithLifecycle()
+        val clicksOn by graph.deviceSettings.clicks.collectAsStateWithLifecycle()
+        val feedback = remember(hapticProfile, clicksOn) { Feedback(profile = hapticProfile, clicker = if (clicksOn) graph.sounds else Clicker.Silent) }
+        val view = LocalView.current
+        // One haptic engine for the whole app (D-105): its capabilities found once, its effects kept.
+        val hapticEngine = remember(view) { HapticEngine(view.context, view) }
+        val haptics = remember(hapticEngine, feedback) { PodiumHaptics(hapticEngine, feedback) }
+        // Add to playlist (D-106), from the library's song menus and Now Playing.
+        val playlistPicker = remember(navigator, haptics) { PlaylistPicker(graph.playlists, haptics, graph.appScope) { navigator.push(Dest.NamePlaylist()) } }
+        val localSongEditor = remember(navigator) {
+            object : LocalSongEditor {
+                override fun editSong(track: Track) {
+                    navigator.push(Dest.EditLocalSong(track.id))
+                }
+                override fun editAlbum(album: LibraryAlbum) {
+                    navigator.push(Dest.EditLocalAlbum(album.id, album.title, album.artist))
+                }
+                override fun editArtist(artist: LibraryArtist) {
+                    navigator.push(Dest.EditLocalArtist(artist.id, artist.name))
+                }
+            }
+        }
+        val scope = rememberCoroutineScope()
+
+        SystemBarIcons(darkIcons = palette.isLight)
+        GlobalInput(router, navigator, overlay, haptics, controller, graph) { direction ->
+            scope.launch {
+                // Hold ⏮/⏭ to scan: 5 s steps, 5 per second (interaction-model.md §3).
+                while (isActive) {
+                    controller.seekTo((controller.positionMs() + direction * 5_000L).coerceAtLeast(0))
+                    delay(200)
+                }
+            }
+        }
+
+        // The physical Podium (D-54, D-56): pinch it into its space; the settings page beside it.
+        val space = rememberPodiumSpaceState()
+        var spacePage by remember { mutableStateOf(SpacePage.MAIN) }
+        var openSticker by remember { mutableStateOf<String?>(null) }
+        var makingFrom by remember { mutableStateOf<android.net.Uri?>(null) }
+        var turningOff by remember { mutableStateOf(false) }
+        val stickerEditor = remember { StickerEditorState() }
+        val guide = remember { GuideState(graph.guide) }
+        LaunchedEffect(space.phase) {
+            if (space.phase == SpacePhase.NORMAL) {
+                spacePage = SpacePage.MAIN
+                openSticker = null
+            }
+        }
+        LaunchedEffect(space) {
+            graph.debugSpace.collect { open ->
+                if (open == true && !space.isOut) space.enter() else if (open == false && space.isOut) space.leave()
+                graph.debugSpace.value = null
+            }
+        }
+        LaunchedEffect(space) {
+            graph.debugStickerSource.collect { uri ->
+                if (uri != null) {
+                    if (!space.isOut) space.enter()
+                    makingFrom = uri
+                    graph.debugStickerSource.value = null
+                }
+            }
+        }
+        LaunchedEffect(space) {
+            graph.debugArrange.collect { arrange ->
+                if (!arrange) return@collect
+                if (!space.isOut) space.enter()
+                snapshotFlow { space.phase }.first { it == SpacePhase.PHYSICAL }
+                space.startEditing()
+                graph.debugArrange.value = false
+            }
+        }
+        LaunchedEffect(guide) {
+            graph.debugGuide.collect { start ->
+                if (start) {
+                    guide.offer()
+                    graph.debugGuide.value = false
+                }
+            }
+        }
+        // The tour (D-57): offered once Podium has switched on for the first time.
+        LaunchedEffect(power) {
+            if (power == Power.ON) {
+                delay(GUIDE_DELAY_MS)
+                guide.offer()
+            }
+        }
+        // Podium's own updates (D-99): a quiet check once the display is on and the tour isn't showing.
+        LaunchedEffect(power, guide.step) {
+            if (power == Power.ON && guide.step == null) {
+                delay(UPDATE_DELAY_MS)
+                graph.updates.autoCheck()
+            }
+        }
+        val pickPicture = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+            if (uri != null) makingFrom = uri
+        }
+        fun stickOn(sticker: Sticker) {
+            val placed = graph.stickers.place(sticker.id)
+            stickerEditor.selected = placed.id
+            spacePage = SpacePage.MAIN
+            space.startEditing()
+        }
+
+        CompositionLocalProvider(
+            LocalInputRouter provides router,
+            LocalOverlayHost provides overlay,
+            LocalImmersiveHost provides immersive,
+            LocalPlaylistPicker provides playlistPicker,
+            LocalSongEditorHost provides localSongEditor,
+            LocalArtworkLoader provides graph.artworkLoader,
+            LocalFeedback provides feedback,
+            LocalHapticEngine provides hapticEngine,
+            LocalKeyboardHost provides keyboard,
+            LocalKeyboardStyle provides if (podiumKeyboard) KeyboardStyle.PODIUM else KeyboardStyle.PHONE,
+            LocalPodiumSpace provides space,
+        ) {
+         // The playing cover, read through the app's artwork loader (provided just above; read before
+         // it, every cover came back empty and the artwork atmosphere never showed). Glass's
+         // atmosphere and Carbon's palette and field (D-101) all come from it.
+         val nowPlayingArtState = rememberArtworkState(snapshot.item?.artworkUri, 96.dp)
+         // While the next cover loads the last one holds, so a skip never dips through neutral.
+         var nowPlayingArt by remember { mutableStateOf(nowPlayingArtState.bitmap) }
+         LaunchedEffect(nowPlayingArtState) {
+             if (nowPlayingArtState.bitmap != null || nowPlayingArtState.settled) nowPlayingArt = nowPlayingArtState.bitmap
+         }
+         val atmosphere = remember(nowPlayingArt, colors.isDark) {
+             nowPlayingArt?.let { Atmosphere.fromArtwork(it.asAndroidBitmap(), colors.isDark) } ?: Atmosphere.neutral(colors)
+         }
+         // Carbon's and Glass's colours from the cover (D-101, D-103); the matte instrument takes none.
+         val lit = !colors.isIndustrial
+         val cover = rememberCoverAnalysis(
+             artwork = if (lit) nowPlayingArtState.bitmap else null,
+             settled = !lit || nowPlayingArtState.settled,
+         )
+         CompositionLocalProvider(LocalAlbumTone provides rememberAlbumTone(cover?.palette)) {
+         Box(Modifier.fillMaxSize()) {
+          PodiumSpace(
+            state = space,
+            edgeColor = if (palette.isGlass) GlassEdge else palette.bodyBottom,
+            spaceTint = androidx.compose.ui.graphics.lerp(if (palette.isGlass) GlassEdge else palette.bodyBottom, Color.Black, 0.94f),
+            stickers = { StickerLayer(graph.stickers, editor = stickerEditor) },
+            stickerEditor = { StickerEditor(graph.stickers, stickerEditor) },
+            panel = {
+                BackHandler {
+                    when {
+                        space.phase == SpacePhase.STICKER_EDITING -> {
+                            stickerEditor.selected = null
+                            space.stopEditing()
+                        }
+                        spacePage != SpacePage.MAIN -> spacePage = SpacePage.MAIN
+                        else -> space.leave()
+                    }
+                }
+                SpacePanel(
+                    state = space,
+                    page = spacePage,
+                    onPage = { spacePage = it },
+                    stickers = {
+                        StickerGallery(
+                            graph.stickers,
+                            onAdd = { pickPicture.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                            onOpen = {
+                                openSticker = it.id
+                                spacePage = SpacePage.STICKER
+                            },
+                            onArrange = space::startEditing,
+                        )
+                    },
+                    sticker = {
+                        StickerDetail(
+                            graph.stickers,
+                            openSticker,
+                            onStick = ::stickOn,
+                            onArrange = space::startEditing,
+                            onDeleted = {
+                                spacePage = SpacePage.MAIN
+                                openSticker = null
+                            },
+                        )
+                    },
+                    help = {
+                        HelpContent(onReplayGuide = guide::begin)
+                    },
+                    onTurnOff = {
+                        // The music stops at once; the goodbye, then Podium closes.
+                        controller.pause()
+                        turningOff = true
+                    },
+                )
+                val arranging by remember(space) { derivedStateOf { space.phase == SpacePhase.STICKER_EDITING || space.edit.value > 0.01f } }
+                if (arranging) StickerEditorBar(space, stickerEditor, graph.stickers)
+                makingFrom?.let { uri ->
+                    StickerMaker(
+                        source = uri,
+                        cutter = graph.cutter,
+                        store = graph.stickers,
+                        onSaved = { sticker ->
+                            makingFrom = null
+                            stickOn(sticker)
+                        },
+                        onCancel = { makingFrom = null },
+                    )
+                }
+            },
+          ) {
+            // One structure for every finish, so trying finishes on never rebuilds the screen.
+            GlassHost(
+                modifier = Modifier.fillMaxSize(),
+                // The Glass body keeps its own neutral light: the album colours only the display (D-101).
+                content = { Body(palette, remember(colors.isDark) { Atmosphere.neutral(colors) }, art = null) },
+                functional = {
+                    DeviceLayout(
+                        modifier = Modifier.fillMaxSize(),
+                        screen = {
+                            // Booting and on are one screen (D-102): the menu is there behind the boot, which
+                            // dives through its mark into it, so the hand-over is one continuous move.
+                            AnimatedContent(
+                                targetState = power != Power.OFF,
+                                transitionSpec = { powerTransition(on = targetState) },
+                                label = "power",
+                            ) { on ->
+                                if (!on) {
+                                    Box(Modifier.fillMaxSize().background(Color.Black).semantics { contentDescription = "Display off" })
+                                } else {
+                                    val booting = power == Power.BOOTING
+                                    // A fresh one each time the display comes on.
+                                    val boot = remember { BootReveal() }
+                                    val idleRouter = remember { InputRouter() }
+                                    Box(Modifier.fillMaxSize()) {
+                                        // While it boots the menu takes no input (the boot does) and stays hidden
+                                        // until the dive, then comes forward out of the distance, into focus.
+                                        CompositionLocalProvider(LocalInputRouter provides if (booting) idleRouter else router) {
+                                            Box(
+                                                Modifier
+                                                    .fillMaxSize()
+                                                    .graphicsLayer {
+                                                        if (!booting) return@graphicsLayer
+                                                        val r = boot.reveal
+                                                        alpha = if (r <= 0f) 0f else 0.3f + 0.7f * r
+                                                        val s = 0.86f + 0.14f * r
+                                                        scaleX = s
+                                                        scaleY = s
+                                                    }
+                                                    .defocus { if (booting) (1f - boot.reveal) * 0.8f else 0f },
+                                            ) {
+                                                ScreenOs(graph, snapshot, backStack, navigator, overlay, atmosphere, cover?.field, onSourceAction)
+                                            }
+                                        }
+                                        if (booting) BootScreen(boot, onChime = graph::onBootChime, onFinished = graph::onBootFinished)
+                                    }
+                                }
+                            }
+                        },
+                        wheel = { diameter ->
+                            WheelKeyboard(keyboard, diameter, palette) {
+                                PodWheel(
+                                    onInput = { router.dispatch(it) },
+                                    diameter = diameter,
+                                    isPlaying = snapshot.intent == PlayIntent.PLAY,
+                                    palette = palette,
+                                )
+                            }
+                        },
+                        keyboardOpen = keyboard.isOpen,
+                        immersive = graph.deviceSettings.immersive.collectAsStateWithLifecycle().value,
+                        powerButton = {
+                            PowerButton(on = power != Power.OFF, palette = palette, onToggle = graph::togglePower)
+                        },
+                        indicators = {
+                            val battery by graph.battery.collectAsStateWithLifecycle()
+                            StatusLeds(battery, DiskActivity.pulses, palette)
+                        },
+                    )
+                },
+            )
+          }
+          GuideTour(guide, palette)
+          if (turningOff) Farewell(onFinished = onTurnOff)
+          app.podium.youtube.YouTubeFullscreenOverlay(palette)
+          app.podium.gallery.GalleryFullscreenOverlay(graph.galleryRepository)
+          app.podium.books.BookFullscreenOverlay(graph.bookRepository)
+          app.podium.clock.WakeIQRingingOverlay(graph, controller)
+         }
+         }
+        }
+    }
+    }
+}
+
+/**
+ * The display's power changes (D-26). Switching off dims the panel first, holds a beat, then goes
+ * black — inside the screen only; the body and the Wheel stay as they are. Waking lights the black
+ * panel straight into the boot, which hands over to the menu by itself (D-102).
+ */
+private fun AnimatedContentTransitionScope<Boolean>.powerTransition(on: Boolean): ContentTransform = if (!on) {
+    fadeIn(
+        keyframes {
+            durationMillis = 520
+            0f at 0
+            0.55f at 150
+            0.55f at 290
+            1f at 520
+        },
+    ) togetherWith fadeOut(tween(durationMillis = 1, delayMillis = 520))
+} else {
+    fadeIn(tween(180)) togetherWith fadeOut(tween(1, delayMillis = 180))
+}
+
+/** The device body: the Glass finish shows the artwork's atmosphere for the Wheel to refract. */
+@Composable
+private fun BoxScope.Body(palette: ShellPalette, atmosphere: Atmosphere, art: ImageBitmap?) {
+    if (palette.isGlass) {
+        AtmosphereBackground(atmosphere, Modifier.fillMaxSize())
+        BackgroundExtension(art, Modifier.fillMaxSize())
+    } else {
+        DeviceBody(palette, Modifier.fillMaxSize())
+    }
+}
+
+/** Everything shown on the virtual screen while the device is on. */
+@Composable
+private fun ScreenOs(
+    graph: AppGraph,
+    snapshot: PlaybackSnapshot,
+    backStack: SnapshotStateList<Dest>,
+    navigator: Navigator,
+    overlay: OverlayHost,
+    atmosphere: Atmosphere,
+    /** Carbon's atmosphere field for the playing cover (D-101), or null. */
+    albumField: ImageBitmap?,
+    onSourceAction: (CapabilityAction) -> Unit,
+) {
+    val controller = graph.playbackController
+    val motion = PodiumTheme.motion
+    val colors = PodiumTheme.colors
+    val output by graph.audioOutput.state.collectAsStateWithLifecycle()
+    // Full screen (D-85): the title bar takes over the time and the battery from the hidden status bar.
+    val immersive by graph.deviceSettings.immersive.collectAsStateWithLifecycle()
+    val titleBarBattery by graph.deviceSettings.titleBarBattery.collectAsStateWithLifecycle()
+    val battery by graph.battery.collectAsStateWithLifecycle()
+    val top = backStack.last()
+    val miniPlayerVisible = snapshot.isActive && top.showsMiniPlayer()
+    // Lyrics take the whole display: no header, no fading edges.
+    val fullScreen = top == Dest.Lyrics
+    // Carbon (D-101): an open menu or notice puts the display behind it out of focus.
+    val updateShown by graph.updates.shown.collectAsStateWithLifecycle()
+    val updateState by graph.updates.state.collectAsStateWithLifecycle()
+    val overlayOpen = overlay.menu != null || (updateShown && updateState != app.podium.update.UpdateState.Idle)
+    val defocused = animateFloatAsState(
+        if (colors.isTonal && overlayOpen) 1f else 0f,
+        if (overlayOpen) tween(220, easing = PodiumMotion.Standard) else tween(140, easing = PodiumMotion.Standard),
+        label = "defocus",
+    )
+    // A moment that takes the whole display (D-104) puts everything behind it out of focus, on every
+    // theme, as deep as it says.
+    val stage = LocalImmersiveHost.current
+    val behindOverlay = Modifier.defocus { maxOf(defocused.value, stage.depth * ImmersiveDefocus) }
+
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val headerTop = if (miniPlayerVisible) ScreenHeaderHeight + 16.dp else ScreenHeaderHeight
+        val insets = ScreenInsets(top = headerTop, bottom = Spacing.edge)
+        val density = LocalDensity.current
+        val screenHeight = maxHeight
+        // The same geometry the lists use, so a screen moving away lands exactly in its box.
+        val listPadding = insets.listPadding()
+        val paper = PaperGeometry(maxWidth, maxHeight, listPadding.calculateTopPadding(), listPadding.calculateBottomPadding())
+        // Where each column's lit row sits, and which column was in front before this move (D-61).
+        val lenses = remember { PaperLenses() }
+        // The column in front now, and the one in front before it. The move may be set up before or
+        // after this records the change, so the column leaving is whichever of the two isn't in front.
+        val fronts = remember { arrayOfNulls<Dest>(2) }
+        SideEffect {
+            val now = backStack.last()
+            if (fronts[1] != now) {
+                fronts[0] = fronts[1]
+                fronts[1] = now
+            }
+        }
+        val leavingLens: () -> Float? = {
+            val now = backStack.last()
+            lenses.centreOf(if (fronts[1] == now) fronts[0] else fronts[1])
+        }
+        val comingLens: () -> Float? = { lenses.centreOf(backStack.last()) }
+
+        GlassHost(
+            modifier = Modifier.fillMaxSize(),
+            content = {
+                // Glass tints the display with the artwork's atmosphere; Carbon lights it with the playing
+                // album, strongest on Now Playing (D-101); Bone stays matte, and a background the
+                // listener chose (D-41) shows as it is.
+                if (colors.isTonal) {
+                    val level = animateFloatAsState(top.atmosphereLevel(), tween(PaperTransitionMillis, easing = PodiumMotion.Spatial), label = "atmosphereLevel")
+                    // On Now Playing, while the music plays, the cover's colours flow (D-103).
+                    AlbumAtmosphere(
+                        albumField,
+                        level = { level.value },
+                        Modifier.fillMaxSize(),
+                        moving = { top == Dest.NowPlaying && snapshot.intent == PlayIntent.PLAY },
+                    )
+                } else if (!colors.isIndustrial && LocalDisplaySurface.current == null) {
+                    // Glass: the album tints the display on Now Playing; elsewhere its neutral light.
+                    val neutral = remember(colors.isDark) { Atmosphere.neutral(colors) }
+                    AtmosphereBackground(if (top == Dest.NowPlaying) atmosphere else neutral, Modifier.fillMaxSize())
+                }
+                CompositionLocalProvider(LocalScreenInsets provides insets, LocalPaperLenses provides lenses) {
+                    NavDisplay(
+                        backStack = backStack,
+                        modifier = Modifier.fillMaxSize().then(behindOverlay).scrollEdgeFade(
+                            topFadePx = if (fullScreen) 0f else with(density) { insets.top.toPx() },
+                            bottomStartPx = with(density) { (if (fullScreen) screenHeight else screenHeight - insets.bottom.coerceAtLeast(24.dp)).toPx() },
+                        ),
+                        onBack = { navigator.pop() },
+                        // Forward: the column in front leaves for the left box, the new one comes from the right.
+                        // Back: the column in front leaves for the right box, the one behind comes from the left.
+                        transitionSpec = { paperForward(paper, density, motion.reduced, leaving = leavingLens()) },
+                        popTransitionSpec = { paperBack(paper, density, motion.reduced, leaving = leavingLens(), coming = comingLens()) },
+                        predictivePopTransitionSpec = { paperBack(paper, density, motion.reduced, leaving = leavingLens(), coming = comingLens()) },
+                        entryProvider = { key ->
+                            // Glass lets Now Playing rise from the mini player; Carbon and Bone keep the whole
+                            // hierarchy on one horizontal sheet of paper (D-29).
+                            val rise = key == Dest.NowPlaying && colors.style == DisplayStyle.GLASS
+                            NavEntry(key, metadata = if (rise) riseFromMiniPlayer(motion) else emptyMap()) { screen ->
+                                // Each screen sees the column before it on the paper peeking in at its left.
+                                val position = backStack.indexOf(screen)
+                                val previous = if (position > 0) backStack[position - 1] else null
+                                val peek: (@Composable (Modifier) -> Unit)? = previous?.let { prev ->
+                                    { m -> PreviousColumn(prev, screen, graph, navigator, m) }
+                                }
+                                val scope = LocalNavAnimatedContentScope.current
+                                val decor: @Composable () -> Modifier = {
+                                    // The glimpses come in as the move settles, soft then sharp, overlapping
+                                    // the column that sinks into their box (D-62).
+                                    with(scope) {
+                                        Modifier
+                                            .animateEnterExit(
+                                                enter = fadeIn(tween(GlimpseArrivalMillis, delayMillis = if (motion.reduced) 0 else GlimpseDelayMillis, easing = PodiumMotion.Standard)),
+                                                exit = fadeOut(tween(80)),
+                                            )
+                                            .softArrival(scope, delayMillis = GlimpseDelayMillis, durationMillis = GlimpseArrivalMillis + 80)
+                                    }
+                                }
+                                CompositionLocalProvider(
+                                    LocalPaperPeek provides peek,
+                                    LocalPaperDecor provides decor,
+                                    LocalPaperKey provides screen,
+                                    LocalColumnTransition provides scope,
+                                ) {
+                                    // Leaving for a box, a column melts into the glimpse that takes its place (D-64).
+                                    Box(Modifier.fillMaxSize().softDeparture(scope, delayMillis = DepartureDelayMillis, durationMillis = PaperTransitionMillis - DepartureDelayMillis)) {
+                                        ScreenContent(screen, graph, navigator, onSourceAction)
+                                    }
+                                }
+                            }
+                        },
+                    )
+                }
+            },
+            functional = {
+                app.podium.youtube.YouTubePersistentLayer(
+                    visible = top == Dest.YouTube,
+                    topInset = if (fullScreen) 0.dp else ScreenHeaderHeight,
+                )
+                // Real-time screen activity tracker for Insights (YouTube, Books, Quran Mosshaf, Gallery)
+                LaunchedEffect(top) {
+                    when (top) {
+                        Dest.YouTube -> {
+                            var lastVideoId: String? = null
+                            while (true) {
+                                kotlinx.coroutines.delay(2_000L)
+                                val wv = app.podium.youtube.YouTubeController.activeWebView ?: continue
+                                val url = wv.url
+                                val vid = app.podium.youtube.YouTubeController.extractYouTubeMedia(url).first
+                                if (vid != null) {
+                                    val title = wv.title?.removeSuffix(" - YouTube")?.trim()?.takeIf { it.isNotBlank() } ?: "YouTube Video"
+                                    if (vid != lastVideoId) {
+                                        lastVideoId = vid
+                                        graph.insightsRepository.recordItemOpened(
+                                            app.podium.insights.InsightsCategory.YOUTUBE,
+                                            vid,
+                                            title,
+                                            "YouTube",
+                                        )
+                                    }
+                                    graph.insightsRepository.addActiveTime(
+                                        app.podium.insights.InsightsCategory.YOUTUBE,
+                                        2_000L,
+                                        vid,
+                                        title,
+                                        "YouTube",
+                                    )
+                                }
+                            }
+                        }
+                        is Dest.Books -> {
+                            val reader = top.place as? app.podium.books.BookPlace.Reader
+                            if (reader != null) {
+                                val book = graph.bookRepository.findBook(reader.bookId)
+                                val title = book?.title ?: "Book"
+                                val sub = book?.author.orEmpty()
+                                graph.insightsRepository.recordItemOpened(
+                                    app.podium.insights.InsightsCategory.BOOKS,
+                                    reader.bookId,
+                                    title,
+                                    sub,
+                                )
+                                while (true) {
+                                    kotlinx.coroutines.delay(2_000L)
+                                    graph.insightsRepository.addActiveTime(
+                                        app.podium.insights.InsightsCategory.BOOKS,
+                                        2_000L,
+                                        reader.bookId,
+                                        title,
+                                        sub,
+                                    )
+                                }
+                            }
+                        }
+                        is Dest.Quran -> {
+                            val mosshaf = top.place as? app.podium.quran.QuranPlace.Mosshaf
+                            if (mosshaf != null) {
+                                val s = app.podium.quran.findSurah(mosshaf.surahId)
+                                val title = s?.nameArabic ?: "Surah ${mosshaf.surahId}"
+                                val sub = s?.nameEnglish.orEmpty()
+                                graph.insightsRepository.recordItemOpened(
+                                    app.podium.insights.InsightsCategory.QURAN,
+                                    "surah:${mosshaf.surahId}",
+                                    title,
+                                    sub,
+                                )
+                                while (true) {
+                                    kotlinx.coroutines.delay(2_000L)
+                                    val snap = graph.playbackController.snapshot.value
+                                    val quranAudioPlaying = snap.status is app.podium.player.api.PlaybackStatus.Playing &&
+                                        snap.item?.trackId?.sourceId?.value == "quran"
+                                    if (!quranAudioPlaying) {
+                                        graph.insightsRepository.addActiveTime(
+                                            app.podium.insights.InsightsCategory.QURAN,
+                                            2_000L,
+                                            "surah:${mosshaf.surahId}",
+                                            title,
+                                            sub,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        is Dest.Gallery -> {
+                            val mediaId = when (val gp = top.place) {
+                                is app.podium.gallery.GalleryPlace.PhotoViewer -> gp.mediaId
+                                is app.podium.gallery.GalleryPlace.VideoPlayer -> gp.mediaId
+                                else -> null
+                            }
+                            if (mediaId != null) {
+                                val item = graph.galleryRepository.allItems.value.firstOrNull { it.id == mediaId }
+                                val title = item?.name ?: "Gallery Media"
+                                val sub = if (item?.isVideo == true) "Video" else "Photo"
+                                graph.insightsRepository.recordItemOpened(
+                                    app.podium.insights.InsightsCategory.GALLERY,
+                                    "gallery:$mediaId",
+                                    title,
+                                    sub,
+                                )
+                                while (true) {
+                                    kotlinx.coroutines.delay(2_000L)
+                                    graph.insightsRepository.addActiveTime(
+                                        app.podium.insights.InsightsCategory.GALLERY,
+                                        2_000L,
+                                        "gallery:$mediaId",
+                                        title,
+                                        sub,
+                                    )
+                                }
+                            }
+                        }
+                        else -> Unit
+                    }
+                }
+                if (!fullScreen) ScreenHeader(
+                    title = titleOf(top, graph),
+                    depth = backStack.size,
+                    canGoBack = false,
+                    onBack = { navigator.pop() },
+                    playing = if (snapshot.isActive) snapshot.intent == PlayIntent.PLAY else null,
+                    output = output.indicator(),
+                    clock = immersive,
+                    battery = if (immersive && titleBarBattery) battery else null,
+                    nowPlayingTitle = if (miniPlayerVisible) snapshot.item?.title else null,
+                    nowPlayingArtworkUri = if (miniPlayerVisible) snapshot.item?.artworkUri else null,
+                    onOpenNowPlaying = navigator::showNowPlaying,
+                    leftAction = if (top == Dest.YouTube) {
+                        {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(6.dp)
+                                    .background(
+                                        color = colors.labelPrimary.copy(alpha = 0.14f),
+                                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                                    )
+                                    .clickable {
+                                        app.podium.youtube.YouTubeController.toggleBrowserFullscreen()
+                                    },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                androidx.compose.foundation.text.BasicText(
+                                    text = "⛶",
+                                    style = androidx.compose.ui.text.TextStyle(
+                                        color = colors.labelPrimary,
+                                        fontSize = androidx.compose.ui.unit.TextUnit(15f, androidx.compose.ui.unit.TextUnitType.Sp),
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                    ),
+                                )
+                            }
+                        }
+                    } else null,
+                    titleContent = {
+                        val strings = LocalAppStrings.current
+                        val focusedKey = lenses.focusedItemOf(top)
+                        val focusedLabel = lenses.focusedLabelOf(top)
+                        val iconKind = headerIconOf(top, focusedKey, focusedLabel, strings)
+                        val ytPhoto by graph.youtubeMusic.accountPhotoUrl.collectAsStateWithLifecycle()
+                        val scUser by graph.soundcloudRepository.currentUser.collectAsStateWithLifecycle()
+                        val avatarUri = when {
+                            iconKind == HomeMenuIconKind.YtMusic || top is Dest.Online -> ytPhoto
+                            iconKind == HomeMenuIconKind.SoundCloud || top is Dest.SoundCloud -> scUser?.avatarUrl
+                            else -> null
+                        }
+                        if (!avatarUri.isNullOrBlank()) {
+                            app.podium.core.designsystem.artwork.ArtworkImage(
+                                uri = avatarUri,
+                                size = 24.dp,
+                                fallbackText = if (iconKind == HomeMenuIconKind.SoundCloud) scUser?.username.orEmpty() else "YT",
+                                round = true,
+                            )
+                        } else {
+                            HeaderDynamicMenuIcon(iconKind)
+                        }
+                    },
+                    modifier = Modifier.align(Alignment.TopCenter).then(behindOverlay),
+                )
+                // Over the title bar and the mini player, under menus and notices (D-104). The system's
+                // back goes to it, not to the screen behind.
+                stage.content?.let { moment ->
+                    moment()
+                    BackHandler { stage.onBack() }
+                }
+                // Back folds the keyboard away before it goes anywhere (D-45). Registered when it
+                // opens, so it comes after the navigation's own handler and wins.
+                val keyboard = LocalKeyboardHost.current
+                if (keyboard != null && keyboard.isOpen) BackHandler { keyboard.dismiss() }
+                overlay.menu?.let { spec ->
+                    GlassMenu(spec, onDismiss = overlay::dismiss, panelPadding = PaddingValues(top = ScreenHeaderHeight))
+                    BackHandler { overlay.dismiss() }
+                }
+                // Podium's update notice (D-99), above menus.
+                app.podium.update.UpdatePrompt(graph.updates, PaddingValues(top = ScreenHeaderHeight))
+            },
+        )
+    }
+}
+
+/**
+ * The column before [current], live (D-29): the previous screen itself, scaled into the box at
+ * middle-left with the item that led here focused. It takes no input and has no side effects
+ * (its own wheel targets go to a throwaway router); tapping it goes back.
+ */
+@Composable
+private fun PreviousColumn(previous: Dest, current: Dest, graph: AppGraph, navigator: Navigator, modifier: Modifier) {
+    val snapshot by graph.playbackController.snapshot.collectAsStateWithLifecycle()
+    val focusKey = when (current) {
+        is Dest.Album -> current.id.value
+        is Dest.Artist -> current.id.value
+        is Dest.Playlist -> current.id
+        is Dest.AddSongs -> PlaylistKeys.ADD_SONGS
+        is Dest.NamePlaylist -> if (current.playlistId == null) PlaylistKeys.NEW else PlaylistKeys.RENAME
+        Dest.NowPlaying -> snapshot.item?.trackId?.value
+        // Settings rows are keyed by their enum names.
+        Dest.Appearance -> "Appearance"
+        Dest.DeviceBody -> "DeviceBody"
+        Dest.VirtualDisplay -> "VirtualDisplay"
+        Dest.Theme -> "Theme"
+        Dest.Font -> "Font"
+        Dest.LyricsFont -> "LyricsFont"
+        Dest.LyricsTheme -> "LyricsTheme"
+        Dest.Background -> "Background"
+        Dest.Finish -> "Finish"
+        Dest.CustomColor -> if (previous == Dest.Finish) "CUSTOM" else "CustomColor"
+        Dest.DisplayColor -> "BackgroundColor"
+        is Dest.Level -> current.level.name
+        Dest.Equalizer -> "Equalizer"
+        is Dest.EqualizerBand -> "Band(index=${current.band})"
+        Dest.CustomSources -> "CustomSources"
+        is Dest.CustomSource -> current.id
+        is Dest.CustomSourceOption -> "Option:${current.key}"
+        Dest.ListenTogether -> "Listen together"
+        is Dest.JoinTogetherCode -> if (previous == Dest.ListenTogether) "nearby:${current.host}:${current.port}" else "JoinTogetherCode"
+        Dest.JoinTogetherAddress -> "join-address"
+        is Dest.Radio -> when (val p = current.place) {
+            app.podium.radio.RadioPlace.Menu -> "Radio"
+            app.podium.radio.RadioPlace.CoverFlow -> "cover-flow"
+            is app.podium.radio.RadioPlace.Category -> "cat:${p.category.name}"
+            app.podium.radio.RadioPlace.Search -> "search"
+            app.podium.radio.RadioPlace.AddCustom -> "add-custom"
+            is app.podium.radio.RadioPlace.EditStation -> "edit:${p.stationId}"
+        }
+        Dest.Downloads -> "Downloads"
+        Dest.DownloadsCoverFlow -> "DownloadsCoverFlow"
+        is Dest.EditLocalSong -> current.trackId.value
+        is Dest.EditLocalAlbum -> current.albumId.value
+        is Dest.EditLocalArtist -> current.artistId.value
+        is Dest.RadioWeb -> current.url
+        else -> titleOf(current, graph)
+    }
+    val backLabel = "Back to ${titleOf(previous, graph)}"
+    Box(modifier) {
+        Box(Modifier.fillMaxSize()) {
+            CompositionLocalProvider(
+                LocalMiniature provides true,
+                LocalMiniatureFocusKey provides focusKey,
+                LocalInputRouter provides remember { InputRouter() },
+                LocalOverlayHost provides remember { OverlayHost() },
+                LocalPaperPeek provides null,
+                LocalColumnTransition provides null,
+            ) {
+                ScreenContent(previous, graph, navigator, onSourceAction = {})
+            }
+        }
+        // The miniature is a picture of where you were: touching it takes you back there.
+        Box(
+            Modifier
+                .matchParentSize()
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { navigator.pop() }
+                .semantics { contentDescription = backLabel },
+        )
+    }
+}
+
+/**
+ * How strongly the playing album lights Carbon's display behind each screen (D-101): fully behind Now
+ * Playing, where the music is the subject; enough to feel alive behind menus; quiet behind long lists
+ * and faint behind Settings, where reading comes first. Lyrics draw their own paper.
+ */
+private fun Dest.atmosphereLevel(): Float = when (this) {
+    Dest.NowPlaying -> 1f
+    Dest.Lyrics, is Dest.RadioWeb -> 0f
+    is Dest.SoundCloud -> if (place is app.podium.soundcloud.SoundCloudPlace.WebLogin) 0f else 0.4f
+    is Dest.YouTube -> 0.4f
+    is Dest.Gallery -> 0.4f
+    is Dest.Books -> 0.4f
+    is Dest.Clock -> 0.4f
+    Dest.UpNext -> 0.6f
+    Dest.Home, Dest.Music, Dest.CoverFlow, Dest.DownloadsCoverFlow, Dest.ListenTogether -> 0.55f
+    Dest.Albums, Dest.Artists, Dest.Songs, Dest.Favorites, Dest.Playlists, is Dest.Playlist, is Dest.AddSongs,
+    is Dest.Album, is Dest.Artist, is Dest.Online, is Dest.Radio, is Dest.Podcasts, is Dest.Quran, Dest.Downloads -> 0.4f
+    else -> 0.22f
+}
+
+private val MiniPlayerScreens = setOf(Dest.Home, Dest.Music, Dest.Albums, Dest.Artists, Dest.Songs, Dest.Favorites, Dest.Playlists, Dest.ListenTogether, Dest.Downloads)
+
+/** How far out of focus a full-display moment puts what's behind it: twice a menu's (D-104). */
+private const val ImmersiveDefocus = 2f
+
+private fun Dest.showsMiniPlayer() = this in MiniPlayerScreens || this is Dest.Album || this is Dest.Artist || this is Dest.Playlist || this is Dest.AddSongs ||
+    (this is Dest.Online && place !is OnlinePlace.Search && place !is OnlinePlace.NamePlaylist && place !is OnlinePlace.CoverFlow) ||
+    (this is Dest.Radio && place !is app.podium.radio.RadioPlace.Search && place !is app.podium.radio.RadioPlace.AddCustom && place !is app.podium.radio.RadioPlace.EditStation && place !is app.podium.radio.RadioPlace.CoverFlow) ||
+    (this is Dest.Podcasts && place !is app.podium.podcast.PodcastPlace.Search && place !is app.podium.podcast.PodcastPlace.AddRss && place !is app.podium.podcast.PodcastPlace.Settings) ||
+    (this is Dest.Quran && place !is app.podium.quran.QuranPlace.Search && place !is app.podium.quran.QuranPlace.Mosshaf) ||
+    (this is Dest.SoundCloud && place !is app.podium.soundcloud.SoundCloudPlace.Search && place !is app.podium.soundcloud.SoundCloudPlace.WebLogin)
+
+@Composable
+private fun ScreenContent(
+    screen: Dest,
+    graph: AppGraph,
+    navigator: Navigator,
+    onSourceAction: (CapabilityAction) -> Unit,
+) {
+    val podiumSpace = app.podium.space.LocalPodiumSpace.current
+    val overlay = LocalOverlayHost.current
+    val haptics = rememberPodiumHaptics()
+    val controller = graph.playbackController
+    val settings = graph.deviceSettings
+    val onlineStatus by graph.online.status.collectAsStateWithLifecycle()
+    val onlineRecent by graph.online.recentlyPlayed.collectAsStateWithLifecycle(initialValue = emptyList())
+    val play: (List<Track>, Int, String) -> Unit = { tracks, index, label ->
+        controller.playContext(tracks.map { it.id }, index, label)
+        navigator.showNowPlaying()
+    }
+    val playNext: (Track) -> Unit = { controller.playNext(listOf(it.id)) }
+    val addToQueue: (Track) -> Unit = { controller.addToQueue(listOf(it.id)) }
+    when (screen) {
+        Dest.Home -> {
+            val snapshot by controller.snapshot.collectAsStateWithLifecycle()
+            val togetherState by graph.together.state.collectAsStateWithLifecycle()
+            val togetherValue = when (val ts = togetherState) {
+                is app.podium.together.TogetherState.Hosting -> "Code ${ts.code}"
+                is app.podium.together.TogetherState.Guest -> ts.hostName
+                is app.podium.together.TogetherState.Joining -> "Joining"
+                app.podium.together.TogetherState.Idle -> null
+            }
+            HomeScreen(
+                repository = graph.library,
+                nowPlayingArtwork = snapshot.item?.artworkUri,
+                nowPlayingActive = snapshot.isActive,
+                onMusic = { navigator.push(Dest.Music) },
+                onShuffleSongs = {
+                    val tracks = (graph.library.songs.value as? LibraryState.Ready)?.tracks.orEmpty()
+                    if (tracks.isNotEmpty()) {
+                        controller.playContext(tracks.map { it.id }, 0, "Songs", shuffle = true)
+                        navigator.showNowPlaying()
+                    }
+                },
+                onNowPlaying = navigator::showNowPlaying,
+                onSettings = { navigator.push(Dest.Settings) },
+                onOnline = if (onlineStatus != null) ({ navigator.push(Dest.Online(OnlinePlace.Menu)) }) else null,
+                onlineArtwork = onlineRecent.mapNotNull { it.artwork?.uri }.distinct().take(10),
+                onRadio = { navigator.push(Dest.Radio(app.podium.radio.RadioPlace.Menu)) },
+                onPodcasts = { navigator.push(Dest.Podcasts(app.podium.podcast.PodcastPlace.Menu)) },
+                onQuran = { navigator.push(Dest.Quran(app.podium.quran.QuranPlace.Menu)) },
+                onSoundCloud = { navigator.push(Dest.SoundCloud(app.podium.soundcloud.SoundCloudPlace.Menu)) },
+                onYouTube = { navigator.push(Dest.YouTube) },
+                onGallery = { navigator.push(Dest.Gallery(app.podium.gallery.GalleryPlace.Menu)) },
+                onBooks = { navigator.push(Dest.Books(app.podium.books.BookPlace.Menu)) },
+                onClock = { navigator.push(Dest.Clock(app.podium.clock.ClockPlace.Menu)) },
+                onListenTogether = { navigator.push(Dest.ListenTogether) },
+                onVoiceMemos = { navigator.push(Dest.VoiceMemos) },
+                onInsights = { navigator.push(Dest.Insights) },
+                listenTogetherValue = togetherValue,
+                onSourceAction = onSourceAction,
+            )
+        }
+        Dest.Music -> {
+            val completedDownloads by graph.downloads.completedTracks.collectAsStateWithLifecycle()
+            MusicScreen(
+                repository = graph.library,
+                favorites = graph.localFavorites,
+                onCoverFlow = { navigator.push(Dest.CoverFlow) },
+                onAlbums = { navigator.push(Dest.Albums) },
+                onArtists = { navigator.push(Dest.Artists) },
+                onSongs = { navigator.push(Dest.Songs) },
+                onFavorites = { navigator.push(Dest.Favorites) },
+                onSourceAction = onSourceAction,
+                playlists = graph.playlists,
+                onPlaylists = { navigator.push(Dest.Playlists) },
+                onDownloads = { navigator.push(Dest.Downloads) },
+                downloadsValue = completedDownloads.size.takeIf { it > 0 }?.toString(),
+                downloadsArtwork = completedDownloads.mapNotNull { it.artwork?.uri }.distinct().take(8),
+            )
+        }
+        Dest.CoverFlow -> {
+            val snapshot by controller.snapshot.collectAsStateWithLifecycle()
+            val playingTrackId = if (snapshot.intent == PlayIntent.PLAY) snapshot.item?.trackId else null
+            CoverFlowScreen(
+                graph.library,
+                onOpen = { navigator.push(Dest.Album(it)) },
+                playingTrackId = playingTrackId,
+            )
+        }
+        Dest.Albums -> AlbumsScreen(graph.library, onOpen = { navigator.push(Dest.Album(it)) })
+        Dest.Artists -> ArtistsScreen(graph.library, onOpen = { navigator.push(Dest.Artist(it)) })
+        is Dest.Album -> AlbumScreen(graph.library, screen.id, onPlay = play, onPlayNext = playNext, onAddToQueue = addToQueue)
+        is Dest.Artist -> ArtistScreen(
+            graph.library,
+            screen.id,
+            onOpenAlbum = { navigator.push(Dest.Album(it)) },
+            onPlay = play,
+            onPlayNext = playNext,
+            onAddToQueue = addToQueue,
+        )
+        Dest.Favorites -> FavoritesScreen(graph.library, graph.localFavorites, onPlay = play, onPlayNext = playNext, onAddToQueue = addToQueue)
+        Dest.Playlists -> PlaylistsScreen(
+            graph.playlists,
+            onOpen = { navigator.push(Dest.Playlist(it.id, it.name)) },
+            onNew = { navigator.push(Dest.NamePlaylist()) },
+        )
+        is Dest.Playlist -> PlaylistScreen(
+            graph.playlists,
+            screen.id,
+            screen.name,
+            onPlay = play,
+            onShuffle = { tracks, label ->
+                controller.playContext(tracks.map { it.id }, 0, label, shuffle = true)
+                navigator.showNowPlaying()
+            },
+            onPlayNext = playNext,
+            onAddToQueue = addToQueue,
+            onAddSongs = { navigator.push(Dest.AddSongs(screen.id)) },
+            onRename = { navigator.push(Dest.NamePlaylist(screen.id, it)) },
+            onDeleted = { navigator.pop() },
+        )
+        is Dest.AddSongs -> AddSongsScreen(graph.library, graph.playlists, screen.playlistId)
+        is Dest.NamePlaylist -> NamePlaylistScreen(
+            graph.playlists,
+            screen.playlistId,
+            screen.currentName,
+            onRenamed = { navigator.pop() },
+            onCreated = { id, name, withSongs ->
+                navigator.pop()
+                // A new, empty playlist opens, ready for its songs; one made for songs goes back to them.
+                if (!withSongs && navigator.current == Dest.Playlists) navigator.push(Dest.Playlist(id, name))
+            },
+        )
+        Dest.Songs -> SongsScreen(
+            repository = graph.library,
+            onPlay = { tracks, index -> play(tracks, index, "Songs") },
+            onPlayNext = playNext,
+            onAddToQueue = addToQueue,
+        )
+        Dest.NowPlaying -> NowPlayingScreen(
+            controller,
+            graph.volume,
+            graph.favorites,
+            onUpNext = { navigator.push(Dest.UpNext) },
+            environmentOf = { id ->
+                when {
+                    id.sourceId == app.podium.radio.RadioStation.RADIO_SOURCE_ID -> "Radio"
+                    id.sourceId == app.podium.podcast.PodcastEpisode.PODCAST_SOURCE_ID -> "Podcast"
+                    id.sourceId == app.podium.quran.QuranMusicSource.QURAN_SOURCE_ID -> "Quran"
+                    graph.downloads.isDownloaded(id) -> "Downloaded"
+                    graph.environments.isOnline(id) -> "Online"
+                    else -> null
+                }
+            },
+            radioWebUrlOf = { id ->
+                if (id.sourceId == app.podium.radio.RadioStation.RADIO_SOURCE_ID) {
+                    val station = graph.radioRepository.getStation(id.providerKey)
+                    station?.customWebUrl?.takeIf { it.isNotBlank() } ?: station?.homepage?.takeIf { it.isNotBlank() }
+                } else null
+            },
+            onOpenWeb = { url, title ->
+                navigator.push(Dest.RadioWeb(url, title))
+            },
+            // A song of the library goes into one of its playlists (D-106); an online song into one of
+            // ONLINE's own (D-109). The two environments never share a playlist (D-34).
+            onAddToPlaylist = LocalPlaylistPicker.current?.let { picker -> { id -> if (!graph.environments.isOnline(id)) picker.show(overlay, listOf(id)) } },
+            onAddOnlineToPlaylist = { track ->
+                // Already there: the add takes nothing and the reject says so (D-110).
+                showAddToPlaylist(overlay, listOf(track), graph.online, graph.appScope, haptics) { place -> navigator.push(Dest.Online(place)) }
+            },
+            onLyrics = { navigator.push(Dest.Lyrics) },
+            trackOf = { id -> graph.songPages.of(id) },
+            sleepTimer = graph.sleepTimer,
+            pulse = graph.audioPulse,
+            // Settings ▸ Now Playing's tray (D-108) and Settings ▸ Now Playing (D-109).
+            autoHideTray = graph.deviceSettings.hideNowPlayingTray.collectAsStateWithLifecycle().value,
+            nostalgic = graph.deviceSettings.nostalgicNowPlaying.collectAsStateWithLifecycle().value,
+            isDownloaded = { id -> graph.downloads.isDownloaded(id) },
+            isDownloading = { id -> graph.downloads.isDownloading(id) },
+            onDownload = { track -> graph.downloads.download(track) },
+            onRemoveDownload = { id -> graph.downloads.remove(id) },
+            onEditSong = { track -> navigator.push(Dest.EditLocalSong(track.id)) },
+            // Each page in the song's own environment (D-34): the library's, or online's.
+            onOpenAlbum = { track ->
+                val album = track.album
+                val id = album?.id
+                if (id != null) when (graph.registry.get(id.sourceId)?.descriptor?.environment) {
+                    MusicEnvironment.LOCAL -> navigator.push(Dest.Album(id))
+                    MusicEnvironment.ONLINE -> navigator.push(Dest.Online(OnlinePlace.Collection(PlaylistId(id.value), album.title, isAlbum = true)))
+                    null -> Unit
+                }
+            },
+            onOpenArtist = { artist ->
+                val id = artist.id
+                if (id != null) when (graph.registry.get(id.sourceId)?.descriptor?.environment) {
+                    MusicEnvironment.LOCAL -> navigator.push(Dest.Artist(id))
+                    MusicEnvironment.ONLINE -> navigator.push(Dest.Online(OnlinePlace.Artist(id, artist.name)))
+                    null -> Unit
+                }
+            },
+        )
+        Dest.Lyrics -> LyricsScreen(
+            controller = controller,
+            gateway = graph.lyricsGateway,
+            pulse = graph.audioPulse,
+            onSelectTheme = { chosen ->
+                val current = settings.appearance.value
+                settings.setAppearance(current.copy(screen = current.screen.copy(lyricsTheme = chosen)))
+            },
+        )
+        is Dest.Online -> OnlineScreen(
+            place = screen.place,
+            repository = graph.online,
+            actions = rememberOnlineActions(graph, navigator),
+            navigate = { navigator.push(Dest.Online(it)) },
+            back = { navigator.pop() },
+        )
+        Dest.UpNext -> UpNextScreen(controller)
+        Dest.Settings -> SettingsScreen(
+            onPodiumSpace = { podiumSpace?.enter() },
+            repository = settings,
+            folders = graph.musicFolders,
+            onlineService = graph.onlineService,
+            onLanguage = { navigator.push(Dest.Language) },
+            onAppearance = { navigator.push(Dest.Appearance) },
+            onMusicFolders = { navigator.push(Dest.MusicFolders("")) },
+            onOnlineService = { navigator.push(Dest.OnlineSources) },
+            onEqualizer = { navigator.push(Dest.Equalizer) },
+            sleepTimer = graph.sleepTimer,
+            onSleepTimer = { overlay.show(sleepTimerMenu(graph.sleepTimer)) },
+            customSources = graph.customSources,
+            onCustomSources = { navigator.push(Dest.CustomSources) },
+            smartDownloads = graph.downloads.smartDownloadsEnabled,
+            onSetSmartDownloads = { graph.downloads.setSmartDownloads(it) },
+            softwareUpdate = remember(graph) { app.podium.update.SoftwareUpdate(graph.updates, checksByItself = !BuildConfig.DEBUG) },
+        )
+        Dest.Language -> app.podium.feature.settings.LanguageScreen(settings)
+        Dest.Equalizer -> app.podium.feature.settings.EqualizerScreen(settings, onBand = { navigator.push(Dest.EqualizerBand(it)) })
+        is Dest.EqualizerBand -> app.podium.feature.settings.EqualizerBandScreen(settings, screen.band, onDone = { navigator.pop() })
+        Dest.OnlineSources -> OnlineServiceScreen(graph.onlineService, onChannels = { navigator.push(Dest.OnlineChannel) })
+        Dest.OnlineChannel -> app.podium.feature.settings.ServiceChannelScreen(graph.onlineService)
+        Dest.CustomSources -> app.podium.feature.settings.CustomSourcesScreen(
+            graph.customSources,
+            onAdd = { navigator.push(Dest.AddCustomSource) },
+            onOpen = { navigator.push(Dest.CustomSource(it)) },
+        )
+        Dest.AddCustomSource -> app.podium.feature.settings.AddCustomSourceScreen(graph.customSources, onAdded = { navigator.pop() })
+        is Dest.CustomSource -> app.podium.feature.settings.CustomSourceScreen(
+            graph.customSources,
+            screen.id,
+            onEditText = { navigator.push(Dest.CustomSourceOption(screen.id, it)) },
+            onRemoved = { navigator.pop() },
+        )
+        is Dest.CustomSourceOption -> app.podium.feature.settings.CustomSourceTextOptionScreen(
+            graph.customSources, screen.id, screen.key, onDone = { navigator.pop() },
+        )
+        is Dest.MusicFolders -> MusicFoldersScreen(graph.musicFolders, screen.path, onOpen = { navigator.push(Dest.MusicFolders(it)) })
+        Dest.Appearance -> AppearanceScreen(
+            settings,
+            onDeviceBody = { navigator.push(Dest.DeviceBody) },
+            onVirtualDisplay = { navigator.push(Dest.VirtualDisplay) },
+        )
+        Dest.DeviceBody -> DeviceBodyScreen(
+            settings,
+            onFinish = { navigator.push(Dest.Finish) },
+            onCustomColor = { navigator.push(Dest.CustomColor) },
+            onLevel = { navigator.push(Dest.Level(it)) },
+        )
+        Dest.VirtualDisplay -> {
+            val image by graph.displayImages.state.collectAsStateWithLifecycle()
+            VirtualDisplayScreen(
+                settings,
+                imageStatus = image.status,
+                onTheme = { navigator.push(Dest.Theme) },
+                onFont = { navigator.push(Dest.Font) },
+                onLyricsFont = { navigator.push(Dest.LyricsFont) },
+                onLyricsTheme = { navigator.push(Dest.LyricsTheme) },
+                onBackground = { navigator.push(Dest.Background) },
+                onBackgroundColor = { navigator.push(Dest.DisplayColor) },
+                onLevel = { navigator.push(Dest.Level(it)) },
+            )
+        }
+        Dest.Theme -> ThemeScreen(settings)
+        Dest.Font -> FontScreen(settings)
+        Dest.LyricsFont -> LyricsFontScreen(settings)
+        Dest.LyricsTheme -> LyricsThemeScreen(settings)
+        Dest.Background -> {
+            val image by graph.displayImages.state.collectAsStateWithLifecycle()
+            // The system photo picker: no storage permission; Podium keeps only the URI.
+            val pick = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+                if (uri != null) {
+                    val current = settings.appearance.value
+                    graph.displayImages.adopt(uri, previous = current.screen.imageUri)
+                    settings.setAppearance(current.copy(screen = current.screen.copy(background = DisplayBackground.IMAGE, imageUri = uri.toString())))
+                    settings.setPreview(null)
+                }
+            }
+            BackgroundScreen(settings, image.status, onChooseImage = {
+                pick.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            })
+        }
+        Dest.Finish -> FinishScreen(settings, onCustomColor = { navigator.push(Dest.CustomColor) })
+        Dest.CustomColor -> CustomColorScreen(settings)
+        Dest.DisplayColor -> CustomColorScreen(settings, ColorTarget.DisplayBackground)
+        is Dest.Level -> LevelScreen(settings, screen.level)
+        Dest.ListenTogether -> app.podium.together.ListenTogetherScreen(
+            together = graph.together,
+            controller = controller,
+            onJoinSession = { host, port, name -> navigator.push(Dest.JoinTogetherCode(host, port, name)) },
+            onJoinByAddress = { navigator.push(Dest.JoinTogetherAddress) },
+            onOpenNowPlaying = navigator::showNowPlaying,
+            onFindSongs = { navigator.push(Dest.Online(OnlinePlace.Search)) },
+        )
+        is Dest.JoinTogetherCode -> app.podium.together.JoinTogetherCodeScreen(
+            host = screen.host,
+            port = screen.port,
+            hostName = screen.name,
+            together = graph.together,
+            onJoined = { navigator.popTo(Dest.ListenTogether) },
+        )
+        Dest.JoinTogetherAddress -> app.podium.together.JoinTogetherAddressScreen(
+            onContinueToCode = { host, port -> navigator.push(Dest.JoinTogetherCode(host, port, host)) },
+        )
+        is Dest.Radio -> app.podium.radio.RadioScreen(
+            place = screen.place,
+            repository = graph.radioRepository,
+            catalog = graph.catalog,
+            controller = controller,
+            navigate = { navigator.push(Dest.Radio(it)) },
+            onOpenNowPlaying = navigator::showNowPlaying,
+            onBack = { navigator.pop() },
+        )
+        is Dest.RadioWeb -> app.podium.radio.RadioWebScreen(
+            url = screen.url,
+            title = screen.title,
+            onBack = { navigator.pop() },
+        )
+        is Dest.Podcasts -> app.podium.podcast.PodcastScreen(
+            place = screen.place,
+            repository = graph.podcastRepository,
+            catalog = graph.catalog,
+            controller = controller,
+            navigate = { navigator.push(Dest.Podcasts(it)) },
+            onOpenNowPlaying = navigator::showNowPlaying,
+            onBack = { navigator.pop() },
+        )
+        is Dest.Quran -> app.podium.quran.QuranScreen(
+            place = screen.place,
+            repository = graph.quranRepository,
+            catalog = graph.catalog,
+            controller = controller,
+            navigate = { navigator.push(Dest.Quran(it)) },
+            onOpenNowPlaying = navigator::showNowPlaying,
+            onBack = { navigator.pop() },
+        )
+        is Dest.SoundCloud -> app.podium.soundcloud.SoundCloudScreen(
+            place = screen.place,
+            repository = graph.soundcloudRepository,
+            catalog = graph.catalog,
+            controller = controller,
+            navigate = { navigator.push(Dest.SoundCloud(it)) },
+            onBack = { navigator.pop() },
+            onOpenNowPlaying = navigator::showNowPlaying,
+        )
+        Dest.YouTube -> app.podium.youtube.YouTubeBrowserScreen()
+        is Dest.Gallery -> app.podium.gallery.GalleryScreen(
+            place = screen.place,
+            repository = graph.galleryRepository,
+            navigate = { navigator.push(Dest.Gallery(it)) },
+            onBack = { navigator.pop() },
+        )
+        is Dest.Books -> app.podium.books.BookScreen(
+            place = screen.place,
+            repository = graph.bookRepository,
+            navigate = { navigator.push(Dest.Books(it)) },
+            onBack = { navigator.pop() },
+        )
+        is Dest.Clock -> app.podium.clock.ClockScreen(
+            place = screen.place,
+            repository = graph.clockRepository,
+            graph = graph,
+            controller = controller,
+            navigate = { navigator.push(Dest.Clock(it)) },
+            onBack = { navigator.pop() },
+        )
+        Dest.Downloads -> app.podium.downloads.DownloadsScreen(
+            downloads = graph.downloads,
+            catalog = graph.catalog,
+            controller = controller,
+            onOpenNowPlaying = navigator::showNowPlaying,
+            onFindSongs = { navigator.push(Dest.Online(OnlinePlace.Search)) },
+            onCoverFlow = { navigator.push(Dest.DownloadsCoverFlow) },
+        )
+        Dest.VoiceMemos -> app.podium.voicememo.VoiceMemosScreen(
+            controller = controller,
+            onRename = { uri, name -> navigator.push(Dest.RenameVoiceMemo(uri.toString(), name)) },
+        )
+        Dest.Insights -> app.podium.insights.InsightsScreen(graph = graph)
+        is Dest.RenameVoiceMemo -> app.podium.voicememo.RenameVoiceMemoScreen(
+            uri = android.net.Uri.parse(screen.uri),
+            currentName = screen.currentName,
+            onDone = { navigator.pop() },
+        )
+        Dest.DownloadsCoverFlow -> app.podium.downloads.DownloadsCoverFlowScreen(
+            downloads = graph.downloads,
+            catalog = graph.catalog,
+            controller = controller,
+            onOpenNowPlaying = navigator::showNowPlaying,
+        )
+        is Dest.EditLocalSong -> EditLocalSongScreen(
+            graph = graph,
+            trackId = screen.trackId,
+            onDone = { navigator.pop() },
+        )
+        is Dest.EditLocalAlbum -> EditLocalAlbumScreen(
+            graph = graph,
+            albumId = screen.albumId,
+            initialTitle = screen.currentTitle,
+            initialArtist = screen.currentArtist,
+            onDone = { navigator.pop() },
+        )
+        is Dest.EditLocalArtist -> EditLocalArtistScreen(
+            graph = graph,
+            artistId = screen.artistId,
+            initialName = screen.currentName,
+            onDone = { navigator.pop() },
+        )
+    }
+}
+
+/** The back stack's only writer. */
+private class Navigator(private val stack: SnapshotStateList<Dest>) {
+    fun push(screen: Dest) {
+        if (stack.last() != screen) {
+            stack.add(screen)
+            DiskActivity.pulse() // opening a folder on the paper
+        }
+    }
+
+    /** @return false at the root. */
+    fun pop(): Boolean {
+        if (stack.size <= 1) return false
+        stack.removeAt(stack.lastIndex)
+        DiskActivity.pulse()
+        return true
+    }
+
+    fun popToRoot(): Boolean {
+        if (stack.size <= 1) return false
+        while (stack.size > 1) stack.removeAt(stack.lastIndex)
+        return true
+    }
+
+    /** Back to [screen] if it's in the stack; otherwise one level. */
+    fun popTo(screen: Dest) {
+        if (screen !in stack) {
+            pop()
+            return
+        }
+        while (stack.last() != screen) stack.removeAt(stack.lastIndex)
+    }
+
+    /** The screen on top. */
+    val current: Dest get() = stack.last()
+
+    /** Now Playing is a single instance: return to it if it's already in the stack. */
+    fun showNowPlaying() {
+        val existing = stack.indexOf(Dest.NowPlaying)
+        if (existing >= 0) {
+            while (stack.lastIndex > existing) stack.removeAt(stack.lastIndex)
+        } else {
+            stack.add(Dest.NowPlaying)
+        }
+    }
+}
+
+/**
+ * Menu = back, long Menu = Home, transport buttons = playback, hold ⏮/⏭ to scan (ADR-011), double
+ * ⏯ = Now Playing (D-68). Switched off, any press wakes the device; while it boots, input is ignored.
+ */
+@Composable
+private fun GlobalInput(
+    router: InputRouter,
+    navigator: Navigator,
+    overlay: OverlayHost,
+    haptics: PodiumHaptics,
+    controller: PlaybackController,
+    graph: AppGraph,
+    startScan: (direction: Int) -> Job,
+) {
+    val scope = rememberCoroutineScope()
+    DisposableEffect(router, navigator) {
+        var scan: Job? = null
+        val playPause = DoublePress()
+        router.global = handler@{ input ->
+            when (graph.power.value) {
+                Power.OFF -> {
+                    if (input is PodiumInput.Press) graph.wake()
+                    return@handler true
+                }
+                Power.BOOTING -> return@handler true
+                Power.ON -> Unit
+            }
+            val isGalleryMedia = (navigator.current as? Dest.Gallery)?.place?.let {
+                it is app.podium.gallery.GalleryPlace.PhotoViewer || it is app.podium.gallery.GalleryPlace.VideoPlayer
+            } == true || (navigator.current as? Dest.Books)?.place is app.podium.books.BookPlace.Reader ||
+                (navigator.current as? Dest.Clock)?.place?.let {
+                    it is app.podium.clock.ClockPlace.Stopwatch || it is app.podium.clock.ClockPlace.Timer
+                } == true || navigator.current == Dest.Insights
+            if (app.podium.clock.ActiveAlarmController.ringingAlarm != null && input is PodiumInput.Press) {
+                controller.pause()
+                app.podium.clock.ActiveAlarmController.dismiss()
+                return@handler true
+            }
+            when (input) {
+                is PodiumInput.Press -> when (input.button) {
+                    WheelButton.MENU -> {
+                        if (navigator.current == Dest.YouTube && app.podium.youtube.YouTubeController.shareLinkDialogUrl != null) {
+                            app.podium.youtube.YouTubeController.closeShareMenu()
+                            true
+                        } else if (app.podium.youtube.YouTubeController.isBrowserFullscreen || app.podium.youtube.YouTubeController.isPhoneFullscreen || app.podium.youtube.YouTubeController.fullscreenView != null) {
+                            app.podium.youtube.YouTubeController.exitFullscreen()
+                            true
+                        } else if (app.podium.gallery.GalleryController.fullscreenItem != null) {
+                            app.podium.gallery.GalleryController.exitFullscreen()
+                            true
+                        } else if (app.podium.books.BookController.isPhoneFullscreen) {
+                            app.podium.books.BookController.exitFullscreen()
+                            true
+                        } else {
+                            if (!navigator.pop()) haptics.boundary()
+                            true
+                        }
+                    }
+                    WheelButton.PLAY_PAUSE -> {
+                        if (isGalleryMedia) {
+                            false
+                        } else if (navigator.current == Dest.YouTube) {
+                            app.podium.youtube.YouTubeController.togglePlayPause()
+                            true
+                        } else {
+                            controller.togglePlayPause()
+                            // Two quick presses: show what's playing, from anywhere. The first press
+                            // already toggled at once (⏯ never waits); the second undoes it, so the
+                            // music is as it was. On Now Playing itself both presses simply toggle.
+                            val double = playPause.press(SystemClock.uptimeMillis())
+                            if (double && navigator.current != Dest.NowPlaying && controller.snapshot.value.item != null) {
+                                overlay.dismiss()
+                                navigator.showNowPlaying()
+                            }
+                            true
+                        }
+                    }
+                    WheelButton.NEXT -> {
+                        if (isGalleryMedia) {
+                            false
+                        } else if (navigator.current == Dest.YouTube) {
+                            app.podium.youtube.YouTubeController.handleNextPress()
+                            true
+                        } else {
+                            controller.next()
+                            true
+                        }
+                    }
+                    WheelButton.PREVIOUS -> {
+                        if (isGalleryMedia) {
+                            false
+                        } else if (navigator.current == Dest.YouTube) {
+                            app.podium.youtube.YouTubeController.handlePreviousPress()
+                            true
+                        } else {
+                            controller.previous()
+                            true
+                        }
+                    }
+                    WheelButton.CENTER -> {
+                        if (navigator.current == Dest.YouTube) {
+                            app.podium.youtube.YouTubeController.cycleWheelMode()
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                }
+                is PodiumInput.LongPress -> when (input.button) {
+                    // Hold ⏯ to toggle phone fullscreen in YouTube/Gallery, or switch off elsewhere.
+                    WheelButton.PLAY_PAUSE -> {
+                        if (isGalleryMedia) {
+                            false
+                        } else if (navigator.current == Dest.YouTube) {
+                            app.podium.youtube.YouTubeController.togglePhoneFullscreen()
+                            true
+                        } else {
+                            graph.togglePower()
+                            true
+                        }
+                    }
+                    WheelButton.MENU -> {
+                        if (!navigator.popToRoot()) haptics.boundary()
+                        true
+                    }
+                    WheelButton.CENTER -> {
+                        if (navigator.current == Dest.YouTube) {
+                            app.podium.youtube.YouTubeController.captureForAudioHandoff { videoId, playlistId, posMs ->
+                                scope.launch {
+                                    runCatching {
+                                        val ytmId = graph.youtubeMusic.descriptor.id
+                                        if (videoId != null) {
+                                            val fetched = (graph.youtubeMusic.catalog.track(
+                                                app.podium.core.model.SourceRef(ytmId, videoId)
+                                            ) as? Outcome.Success)?.value
+                                            val track = fetched ?: app.podium.core.model.Track(
+                                                id = app.podium.core.model.TrackId.of(ytmId, videoId),
+                                                source = app.podium.core.model.SourceRef(
+                                                    ytmId,
+                                                    videoId,
+                                                    providerUri = "https://music.youtube.com/watch?v=$videoId",
+                                                ),
+                                                title = "YouTube Music",
+                                                artists = listOf(app.podium.core.model.ArtistCredit("YouTube Music")),
+                                                availability = app.podium.core.model.Availability.Playable,
+                                                routes = setOf(app.podium.core.model.PlaybackRoute.DIRECT),
+                                            )
+                                            graph.catalog.remember(listOf(track))
+                                            controller.playContext(listOf(track.id), 0, track.title)
+                                            navigator.showNowPlaying()
+                                            if (posMs > 1500L) {
+                                                var waited = 0
+                                                while (waited < 8000) {
+                                                    val snap = controller.snapshot.value
+                                                    if (snap.item?.trackId == track.id &&
+                                                        snap.status is app.podium.player.api.PlaybackStatus.Playing
+                                                    ) {
+                                                        kotlinx.coroutines.delay(250)
+                                                        controller.seekTo(posMs)
+                                                        break
+                                                    }
+                                                    kotlinx.coroutines.delay(150)
+                                                    waited += 150
+                                                }
+                                            }
+                                        } else if (playlistId != null) {
+                                            val detail = (graph.youtubeMusic.catalog.playlist(
+                                                app.podium.core.model.PlaylistId.of(ytmId, playlistId)
+                                            ) as? Outcome.Success)?.value
+                                            val tracks = detail?.tracks.orEmpty()
+                                            if (tracks.isNotEmpty()) {
+                                                graph.catalog.remember(tracks)
+                                                controller.playContext(
+                                                    tracks.map { it.id },
+                                                    0,
+                                                    detail?.summary?.title ?: "Playlist",
+                                                )
+                                                navigator.showNowPlaying()
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    WheelButton.NEXT, WheelButton.PREVIOUS -> {
+                        if (navigator.current == Dest.YouTube) {
+                            if (input.button == WheelButton.NEXT) {
+                                app.podium.youtube.YouTubeController.handleNextLongPress()
+                            } else {
+                                app.podium.youtube.YouTubeController.handlePreviousLongPress()
+                            }
+                            true
+                        } else {
+                            scan?.cancel()
+                            scan = startScan(if (input.button == WheelButton.NEXT) 1 else -1)
+                            true
+                        }
+                    }
+                    else -> false
+                }
+                is PodiumInput.Release -> {
+                    scan?.cancel()
+                    scan = null
+                    true
+                }
+                is PodiumInput.Rotate -> {
+                    if (navigator.current == Dest.YouTube) {
+                        app.podium.youtube.YouTubeController.handleWheelRotate(input.detents, input.velocity)
+                        true
+                    } else {
+                        false
+                    }
+                }
+            }
+        }
+        onDispose {
+            scan?.cancel()
+            router.global = { false }
+        }
+    }
+}
+
+/** Status- and navigation-bar icons follow the body: dark icons on Silver and Glacier blue. */
+@Composable
+private fun SystemBarIcons(darkIcons: Boolean) {
+    val view = LocalView.current
+    SideEffect {
+        val window = (view.context as? Activity)?.window ?: return@SideEffect
+        WindowCompat.getInsetsController(window, view).apply {
+            isAppearanceLightStatusBars = darkIcons
+            isAppearanceLightNavigationBars = darkIcons
+        }
+    }
+}
+
+/** One move along the paper (SPATIAL, D-65). */
+private const val PaperTransitionMillis = PodiumMotion.SpatialMillis
+
+/**
+ * The glimpses arrive as the column leaving reaches its box (92 % of the way, at 47 % of the time on
+ * [PodiumMotion.Spatial]), overlapping it, and sharpen as the move settles.
+ */
+private const val GlimpseDelayMillis = PaperTransitionMillis * 47 / 100
+private const val GlimpseArrivalMillis = 240
+
+/** The column leaving softens from 88 % of its way (40 % of the time), as its glimpse arrives. */
+private const val DepartureDelayMillis = PaperTransitionMillis * 40 / 100
+
+/**
+ * Forward along the paper (D-29, after the user's sketch): the next column grows out of its
+ * preview box at middle-right and rises along the curve into focus, while the current screen
+ * sinks down and to the left into the previous-column box — the Wheel turning one step. Every part
+ * of the move follows one curve, [PodiumMotion.Spatial] (D-65, after D-60): it leaves on the frame
+ * of the press, keeps going and settles with a long, soft finish — never pausing part-way.
+ */
+private fun AnimatedContentTransitionScope<Scene<Dest>>.paperForward(
+    g: PaperGeometry,
+    density: Density,
+    reduced: Boolean,
+    leaving: Float?,
+): ContentTransform {
+    if (reduced) return fadeIn(tween(160)) togetherWith fadeOut(tween(120))
+    val (right, left, lift) = paperPoints(g, density)
+    return paperMove(
+        enterFrom = right,
+        enterScale = g.tileScale,
+        exitTo = left + litToLeftBox(g, density, leaving),
+        exitScale = g.glimpseScale,
+        lift = lift,
+    )
+}
+
+/** Back along the paper: the previous column rises out of its box into focus; the current one sinks into the next box. */
+private fun AnimatedContentTransitionScope<Scene<Dest>>.paperBack(
+    g: PaperGeometry,
+    density: Density,
+    reduced: Boolean,
+    leaving: Float?,
+    coming: Float?,
+): ContentTransform {
+    if (reduced) return fadeIn(tween(160)) togetherWith fadeOut(tween(120))
+    val (right, left, lift) = paperPoints(g, density)
+    return paperMove(
+        enterFrom = left + litToLeftBox(g, density, coming),
+        enterScale = g.glimpseScale,
+        exitTo = right,
+        exitScale = g.tileScale,
+        lift = lift,
+    )
+}
+
+/**
+ * How far to move a column sitting in the left box (at [PaperGeometry.peekScale]) so its lit row,
+ * at [litY] px in the column, lands on the box's middle — where the glimpse shows that row (D-61).
+ */
+private fun litToLeftBox(g: PaperGeometry, density: Density, litY: Float?): IntOffset = with(density) {
+    val lit = litY ?: return IntOffset.Zero
+    IntOffset(0, ((g.centreY.toPx() - lit) * g.glimpseScale).roundToInt())
+}
+
+
+private fun paperMove(enterFrom: IntOffset, enterScale: Float, exitTo: IntOffset, exitScale: Float, lift: Int): ContentTransform {
+    val d = PaperTransitionMillis
+    val spatial = PodiumMotion.Spatial
+    // The column coming in rises out of its box along an arc; the one leaving dips into the other.
+    // The leaving column fades only once it is in its box (95 % of the way), under its glimpse.
+    val enter = slideIn(arc(enterFrom, IntOffset.Zero, IntOffset(enterFrom.x / 2, enterFrom.y - lift), d)) { enterFrom } +
+        scaleIn(tween(d, easing = spatial), initialScale = enterScale) +
+        fadeIn(tween(d * 45 / 100, easing = spatial), initialAlpha = 0.55f)
+    val exit = slideOut(arc(IntOffset.Zero, exitTo, IntOffset(exitTo.x / 2, exitTo.y + lift), d)) { exitTo } +
+        scaleOut(tween(d, easing = spatial), targetScale = exitScale) +
+        fadeOut(tween(d * 43 / 100, delayMillis = d * 57 / 100, easing = PodiumMotion.Standard))
+    return enter togetherWith exit
+}
+
+/**
+ * A move from [from] to [to] along the arc through [through] (its midpoint), timed by one curve
+ * end to end ([PodiumMotion.Spatial]): the path is a quadratic curve, sampled finely at eased
+ * times, so the speed never dips part-way and the first frame already moves.
+ */
+private fun arc(from: IntOffset, to: IntOffset, through: IntOffset, durationMillis: Int) = keyframes<IntOffset> {
+    this.durationMillis = durationMillis
+    // The control point that makes the curve pass through [through] halfway.
+    val cx = 2f * through.x - (from.x + to.x) / 2f
+    val cy = 2f * through.y - (from.y + to.y) / 2f
+    for (i in 0..ArcSamples) {
+        val time = i / ArcSamples.toFloat()
+        val t = PodiumMotion.Spatial.transform(time)
+        val u = 1f - t
+        val x = u * u * from.x + 2f * u * t * cx + t * t * to.x
+        val y = u * u * from.y + 2f * u * t * cy + t * t * to.y
+        IntOffset(x.roundToInt(), y.roundToInt()) at (durationMillis * i / ArcSamples) using LinearEasing
+    }
+}
+
+private const val ArcSamples = 30
+
+/**
+ * Centre offsets of a screen sitting in the next box (whole, filling the tile's frame at
+ * [PaperGeometry.tileScale] — D-66) and in the previous box (exactly as the glimpse shows it, at
+ * [PaperGeometry.glimpseScale] — D-63), and how far the path arcs.
+ */
+private fun paperPoints(g: PaperGeometry, density: Density): Triple<IntOffset, IntOffset, Int> = with(density) {
+    val right = IntOffset(
+        (g.tileLeft + g.width * g.tileScale / 2 - g.width / 2).roundToPx(),
+        (g.centreY - g.height / 2).roundToPx(),
+    )
+    val left = IntOffset(
+        (g.glimpseOriginX + g.width * g.glimpseScale / 2 - g.width / 2).roundToPx(),
+        (g.glimpseOriginY + g.height * g.glimpseScale / 2 - g.height / 2).roundToPx(),
+    )
+    Triple(right, left, (g.height * 0.12f).roundToPx())
+}
+
+/**
+ * Now Playing rises from where the mini player sits and sinks back into it, so library → mini
+ * player → Now Playing reads as one gesture. Its siblings keep the horizontal strip.
+ */
+private fun riseFromMiniPlayer(motion: PodiumMotion): Map<String, Any> {
+    val sink: AnimatedContentTransitionScope<Scene<*>>.() -> ContentTransform = {
+        if (motion.reduced) {
+            fadeIn(motion.fadeStandard()) togetherWith fadeOut(motion.fadeFast())
+        } else {
+            (fadeIn(tween(240)) + scaleIn(tween(320), initialScale = 0.97f)) togetherWith
+                (slideOutVertically(motion.navigateOffset()) { it } + fadeOut(tween(220, delayMillis = 80)))
+        }.apply { targetContentZIndex = -1f }
+    }
+    return NavDisplay.transitionSpec {
+        if (motion.reduced) {
+            fadeIn(motion.fadeStandard()) togetherWith fadeOut(motion.fadeFast())
+        } else {
+            (slideInVertically(motion.navigateOffset()) { it } + fadeIn(tween(200))) togetherWith
+                (fadeOut(tween(260)) + scaleOut(tween(320), targetScale = 0.97f))
+        }
+    } + NavDisplay.popTransitionSpec(sink) + NavDisplay.predictivePopTransitionSpec { sink() }
+}
+
+/**
+ * What ONLINE asks of the player and the system (D-34). Songs go into the catalog first, so the
+ * service can play them by id; radios start as RADIO items from the source's own recommendations.
+ */
+@Composable
+private fun rememberOnlineActions(graph: AppGraph, navigator: Navigator): OnlineActions {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    return remember(graph, navigator, context) {
+        val controller = graph.playbackController
+        object : OnlineActions {
+            private fun startRadio(seed: List<Track>, label: String) {
+                if (seed.isEmpty()) return
+                graph.catalog.remember(seed)
+                controller.playContext(seed.map { it.id }, 0, label, radio = true)
+                navigator.showNowPlaying()
+            }
+
+            override fun play(tracks: List<Track>, index: Int, label: String) {
+                if (tracks.isEmpty()) return
+                graph.catalog.remember(tracks)
+                controller.playContext(tracks.map { it.id }, index.coerceIn(0, tracks.lastIndex), label)
+                navigator.showNowPlaying()
+            }
+
+            override fun shuffle(tracks: List<Track>, label: String) {
+                if (tracks.isEmpty()) return
+                graph.catalog.remember(tracks)
+                controller.playContext(tracks.map { it.id }, tracks.indices.random(), label, shuffle = true)
+                navigator.showNowPlaying()
+            }
+
+            override fun playNext(track: Track) {
+                graph.catalog.remember(listOf(track))
+                if (graph.together.isGuest) {
+                    graph.together.suggest(track, next = true)
+                } else {
+                    controller.playNext(listOf(track.id))
+                }
+            }
+
+            override fun addToQueue(track: Track) {
+                graph.catalog.remember(listOf(track))
+                if (graph.together.isGuest) {
+                    graph.together.suggest(track, next = false)
+                } else {
+                    controller.addToQueue(listOf(track.id))
+                }
+            }
+
+            override fun playAlone(track: Track) {
+                graph.catalog.remember(listOf(track))
+                if (graph.playsRemotely(track)) {
+                    // The app that plays it carries on from this song itself (§8.5).
+                    controller.playCollection(listOf(track.id), 0, "${track.title} radio", RemoteContext.Radio(track))
+                } else {
+                    // Only this song is queued: autoplay asks its source for songs like it straight
+                    // away (the queue is short), so Up Next fills with them while it plays (D-74).
+                    controller.playContext(listOf(track.id), 0, track.title)
+                }
+                navigator.showNowPlaying()
+            }
+
+            override fun startRadio(track: Track) {
+                graph.catalog.remember(listOf(track))
+                if (graph.playsRemotely(track)) {
+                    // The app that plays it runs its own radio from this song (YOUTUBE_MUSIC_ARCHITECTURE §8.5).
+                    controller.playCollection(listOf(track.id), 0, "${track.title} radio", RemoteContext.Radio(track))
+                    navigator.showNowPlaying()
+                    return
+                }
+                scope.launch {
+                    val more = graph.recommendations.recommend(RecommendationRequest(listOf(track), setOf(track.id), RADIO_SIZE))
+                    startRadio(listOf(track) + more.filter { it.id != track.id }, "${track.title} radio")
+                }
+            }
+
+            override fun startArtistRadio(artist: ArtistSummary) {
+                scope.launch {
+                    val top = (graph.online.artist(artist.id) as? Outcome.Success)?.value?.tracks?.firstOrNull()
+                    if (top != null && graph.playsRemotely(top)) {
+                        graph.catalog.remember(listOf(top))
+                        controller.playCollection(listOf(top.id), 0, "${artist.name} radio", RemoteContext.ArtistRadio(artist.id))
+                        navigator.showNowPlaying()
+                        return@launch
+                    }
+                    val tracks = graph.recommendations.artistRadio(artist.id, artist.id.sourceId, RADIO_SIZE, emptySet())
+                    startRadio(tracks, "${artist.name} radio")
+                }
+            }
+
+            override fun playCollection(tracks: List<Track>, index: Int, label: String, collection: PlaylistId, shuffle: Boolean) {
+                if (tracks.isEmpty()) return
+                graph.catalog.remember(tracks)
+                val start = if (shuffle) tracks.indices.random() else index.coerceIn(0, tracks.lastIndex)
+                controller.playCollection(tracks.map { it.id }, start, label, RemoteContext.Collection(collection), shuffle)
+                navigator.showNowPlaying()
+            }
+
+            override fun signIn() = graph.onlineService.signIn()
+
+            override fun startGenreRadio(genre: String) {
+                scope.launch {
+                    val tracks = (graph.online.genre(genre, 0, RADIO_SIZE) as? Outcome.Success)?.value.orEmpty().shuffled()
+                    startRadio(tracks, "$genre radio")
+                }
+            }
+
+            override fun share(track: Track) {
+                val link = track.source.providerUri ?: return
+                val send = Intent(Intent.ACTION_SEND).setType("text/plain")
+                    .putExtra(Intent.EXTRA_TEXT, "${track.title} by ${track.artistDisplay}\n$link")
+                context.startActivity(Intent.createChooser(send, "Share ${track.title}").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+
+            override val nowPlaying: StateFlow<Track?> = controller.snapshot
+                .map { snap ->
+                    if (snap.intent != PlayIntent.PLAY) return@map null
+                    snap.item?.trackId?.takeIf { graph.environments.isOnline(it) }?.let { graph.catalog.cached(it) }
+                }
+                .stateIn(scope, SharingStarted.Eagerly, null)
+
+            override fun isDownloaded(trackId: TrackId): Boolean = graph.downloads.isDownloaded(trackId)
+            override fun isDownloading(trackId: TrackId): Boolean = graph.downloads.isDownloading(trackId)
+            override fun download(track: Track) = graph.downloads.download(track)
+            override fun downloadAll(tracks: List<Track>) = graph.downloads.downloadAll(tracks)
+            override fun downloadCollection(id: PlaylistId) {
+                graph.appScope.launch {
+                    val tracks = (graph.online.collection(id) as? Outcome.Success)?.value?.tracks
+                        ?.filter { it.availability !is app.podium.core.model.Availability.Unavailable }.orEmpty()
+                    if (tracks.isNotEmpty()) graph.downloads.downloadAll(tracks)
+                }
+            }
+            override fun downloadArtist(id: ArtistId) {
+                graph.appScope.launch {
+                    val tracks = (graph.online.artist(id) as? Outcome.Success)?.value?.tracks
+                        ?.filter { it.availability !is app.podium.core.model.Availability.Unavailable }.orEmpty()
+                    if (tracks.isNotEmpty()) graph.downloads.downloadAll(tracks)
+                }
+            }
+            override fun downloadMyPlaylist(id: String) {
+                graph.appScope.launch {
+                    val contents = graph.online.playlist(id).first() ?: return@launch
+                    val tracks = contents.entries.map { it.track }
+                        .filter { it.availability !is app.podium.core.model.Availability.Unavailable }
+                    if (tracks.isNotEmpty()) graph.downloads.downloadAll(tracks)
+                }
+            }
+            override fun removeDownload(trackId: TrackId) = graph.downloads.remove(trackId)
+            override fun openDownloads() = navigator.push(Dest.Downloads)
+            override val downloadsCount: StateFlow<Int> = graph.downloads.completedTracks
+                .map { it.size }
+                .stateIn(scope, SharingStarted.Eagerly, 0)
+        }
+    }
+}
+
+private const val RADIO_SIZE = 30
+
+private const val OUTPUT_REFRESH_MS = 4_000L
+
+/** The guide waits a moment after switching on, for the display to settle (and any first question). */
+private const val GUIDE_DELAY_MS = 900L
+
+/** The update check waits this long after the display switches on: the screen settles first. */
+private const val UPDATE_DELAY_MS = 2_500L
+
+/** The slab's edge for the Glass finish (its body is the artwork's atmosphere, not a colour). */
+private val GlassEdge = Color(0xFF1C1E22)
+
+/** The status bar's output glyph: muted first, then where the music goes (none for other outputs). */
+private fun app.podium.player.service.AudioOutputState.indicator(): app.podium.core.designsystem.shell.OutputIndicator? = when {
+    muted -> app.podium.core.designsystem.shell.OutputIndicator.MUTED
+    route == app.podium.player.service.AudioRoute.BLUETOOTH -> app.podium.core.designsystem.shell.OutputIndicator.BLUETOOTH
+    route == app.podium.player.service.AudioRoute.WIRED -> app.podium.core.designsystem.shell.OutputIndicator.HEADPHONES
+    route == app.podium.player.service.AudioRoute.SPEAKER -> app.podium.core.designsystem.shell.OutputIndicator.PHONE_SPEAKER
+    else -> null
+}
+
