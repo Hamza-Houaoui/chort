@@ -175,12 +175,16 @@ internal fun OrbKey(p: NowPlayingParts, diameter: Dp, modifier: Modifier = Modif
         }
     }
 
+    val hidingForReturn = OrbTransitionState.isReturningToNowPlaying
     LiveOrb(
         diameter = diameter,
         settled = !playing,
         face = face,
         pressed = { pressed },
         modifier = modifier
+            .graphicsLayer {
+                alpha = if (hidingForReturn) 0f else 1f
+            }
             .pressFeedback(0.96f)
             .clickable(interactionSource = interaction, indication = null) {
                 // Touching the orb keeps the tray's own clock running (D-108).
@@ -211,6 +215,11 @@ internal const val LensGaze = 0.62f
 private const val StillPollMs = 400L
 private const val MinWaitMs = 16L
 
+/** Shared transition flag so Now Playing's [OrbKey] stays hidden while the floating robot flies back into place. */
+internal object OrbTransitionState {
+    var isReturningToNowPlaying: Boolean by mutableStateOf(false)
+}
+
 /**
  * Floating live robot companion outside Now Playing:
  * - Alternates between two exit choreographies whenever leaving Now Playing while music is active:
@@ -218,6 +227,7 @@ private const val MinWaitMs = 16L
  *     behind bottom bezel -> 1300–2000 ms pops out from behind top bezel over top-left dynamic icon with bounce.
  *   - Mode 2 (Direct Arc + Spin): launches immediately from Now Playing spot along a smooth curved arc
  *     to top-left while shrinking (72dp -> 26dp) and doing a playful 360° spin, landing with a soft bounce.
+ * - When returning to Now Playing, plays the reverse animation from top-left back to Now Playing's orb spot!
  * - Keeps [AudioPulse.listen] active so it dances to real-time bass/energy/volume just like Now Playing,
  *   with expressive music motion tuned for 26dp and eyes that react to the wheel cursor.
  * - Single tap toggles Play/Pause; long-press or double-tap opens Now Playing.
@@ -241,34 +251,62 @@ fun FloatingNowPlayingOrb(
     val reduced = PodiumTheme.motion.reduced
     val haptics = rememberPodiumHaptics()
 
-    // Alternate between Dive (false) and Direct Arc + Spin (true) on every exit from Now Playing.
+    // Alternate between Dive (false) and Direct Arc + Spin (true) on every exit from Now Playing,
+    // and reverse the active mode when returning into Now Playing.
     var wasInNowPlaying by remember { mutableStateOf(false) }
+    var wasOutsideActive by remember { mutableStateOf(false) }
     var nextExitDirectArc by remember { mutableStateOf(false) }
     var activeExitIsArc by remember { mutableStateOf(false) }
-    val travelDurationMs = if (activeExitIsArc) 1_200f else 2_000f
+    var isReturningToNowPlaying by remember { mutableStateOf(false) }
+
+    val travelDurationMs = when {
+        isReturningToNowPlaying && activeExitIsArc -> 1_100f
+        isReturningToNowPlaying -> 1_150f
+        activeExitIsArc -> 1_200f
+        else -> 2_000f
+    }
     var travelElapsedMs by remember { mutableFloatStateOf(2_000f) }
 
-    LaunchedEffect(inNowPlaying, active) {
+    LaunchedEffect(inNowPlaying, active, hidden) {
         if (inNowPlaying) {
             wasInNowPlaying = true
-            travelElapsedMs = 2_000f
-        } else if (wasInNowPlaying && active) {
-            wasInNowPlaying = false
-            activeExitIsArc = nextExitDirectArc
-            nextExitDirectArc = !nextExitDirectArc
-            val dur = if (activeExitIsArc) 1_200f else 2_000f
-            travelElapsedMs = if (reduced) dur else 0f
+            if (wasOutsideActive && active && !hidden && !reduced) {
+                wasOutsideActive = false
+                isReturningToNowPlaying = true
+                OrbTransitionState.isReturningToNowPlaying = true
+                travelElapsedMs = 0f
+            } else {
+                wasOutsideActive = false
+                isReturningToNowPlaying = false
+                OrbTransitionState.isReturningToNowPlaying = false
+                travelElapsedMs = travelDurationMs
+            }
+        } else {
+            isReturningToNowPlaying = false
+            OrbTransitionState.isReturningToNowPlaying = false
+            if (active && !hidden) {
+                wasOutsideActive = true
+            } else if (!active) {
+                wasOutsideActive = false
+            }
+            if (wasInNowPlaying && active) {
+                wasInNowPlaying = false
+                activeExitIsArc = nextExitDirectArc
+                nextExitDirectArc = !nextExitDirectArc
+                val dur = if (activeExitIsArc) 1_200f else 2_000f
+                travelElapsedMs = if (reduced) dur else 0f
+            }
         }
     }
 
-    // Keep the audio meter alive outside Now Playing so the top-left robot dances to real live beats!
-    DisposableEffect(pulse, playing, inNowPlaying, hidden) {
-        val listening = if (playing && !inNowPlaying && !hidden) pulse.listen() else null
+    // Keep the audio meter alive outside Now Playing (and during return flight) so it dances to real live beats!
+    DisposableEffect(pulse, playing, inNowPlaying, isReturningToNowPlaying, hidden) {
+        val listening = if (playing && (!inNowPlaying || isReturningToNowPlaying) && !hidden) pulse.listen() else null
         onDispose { listening?.close() }
     }
 
     if (!active || hidden) return
-    if (inNowPlaying && travelElapsedMs >= travelDurationMs) return
+    if (inNowPlaying && !isReturningToNowPlaying) return
 
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -301,16 +339,25 @@ fun FloatingNowPlayingOrb(
         }
     }
 
-    LaunchedEffect(playing, reduced, pulse, pressed, snapshot.item?.uid, inNowPlaying, volumeFraction, activeExitIsArc) {
+    LaunchedEffect(playing, reduced, pulse, pressed, snapshot.item?.uid, inNowPlaying, isReturningToNowPlaying, volumeFraction, activeExitIsArc) {
         var last = -1L
         while (isActive) {
             val nanos = withFrameNanos { it }
             val dt = if (last < 0L) 0f else (nanos - last) / 1e6f
             last = nanos
 
-            val dur = if (activeExitIsArc) 1_200f else 2_000f
+            val dur = when {
+                isReturningToNowPlaying && activeExitIsArc -> 1_100f
+                isReturningToNowPlaying -> 1_150f
+                activeExitIsArc -> 1_200f
+                else -> 2_000f
+            }
             if (travelElapsedMs < dur) {
                 travelElapsedMs = (travelElapsedMs + dt).coerceAtMost(dur)
+                if (travelElapsedMs >= dur && isReturningToNowPlaying) {
+                    isReturningToNowPlaying = false
+                    OrbTransitionState.isReturningToNowPlaying = false
+                }
             }
             if (cursorAlertMs[0] > 0f) {
                 cursorAlertMs[0] = (cursorAlertMs[0] - dt).coerceAtLeast(0f)
@@ -365,6 +412,42 @@ fun FloatingNowPlayingOrb(
                     face.eyeWidth *= 0.62f
                     face.eyeHeight *= 0.58f
                     face.tilt += 7f
+                }
+            } else if (isReturningToNowPlaying && activeExitIsArc) {
+                // Reverse Mode 2: Direct Arc + Spin from top-left down to Now Playing spot
+                when {
+                    t < 780f -> {
+                        val p = (t / 780f).coerceIn(0f, 1f)
+                        face.gazeX = 0.45f * (1f - p * 0.4f)
+                        face.gazeY = 0.55f * (1f - p * 0.4f)
+                        face.eyeBend = 0.65f
+                        face.scaleX = 1f + 0.06f * kotlin.math.sin(p * Math.PI.toFloat())
+                        face.scaleY = 1f - 0.06f * kotlin.math.sin(p * Math.PI.toFloat())
+                    }
+                    else -> {
+                        val p = ((t - 780f) / 320f).coerceIn(0f, 1f)
+                        val wobble = kotlin.math.sin(p * Math.PI.toFloat() * 2.5f) * (1f - p)
+                        face.scaleX = 1f + 0.14f * wobble
+                        face.scaleY = 1f - 0.14f * wobble
+                        face.eyeBend = 0.70f * (1f - p * 0.5f)
+                    }
+                }
+            } else if (isReturningToNowPlaying) {
+                // Reverse Mode 1: Dive up behind top bezel, emerge from bottom bezel up to Now Playing spot
+                when {
+                    t < 420f -> {
+                        face.gazeX = 0f
+                        face.gazeY = -0.6f
+                        face.scaleX = 0.92f
+                        face.scaleY = 1.08f
+                    }
+                    else -> {
+                        val p = ((t - 420f) / 730f).coerceIn(0f, 1f)
+                        val wobble = kotlin.math.sin(p * Math.PI.toFloat() * 3f) * (1f - p)
+                        face.scaleX = 1f - 0.10f * wobble
+                        face.scaleY = 1f + 0.10f * wobble
+                        face.eyeBend = 0.75f * (1f - p * 0.4f)
+                    }
                 }
             } else if (activeExitIsArc) {
                 // Mode 2: Direct Arc + Spin face expression
@@ -470,7 +553,62 @@ fun FloatingNowPlayingOrb(
         val currentSize: Dp
         var spinDeg = 0f
 
-        if (activeExitIsArc) {
+        if (isReturningToNowPlaying && activeExitIsArc) {
+            when {
+                // Reverse Mode 2 Phase 1 (0..780 ms): Fly back in a curved arc from top-left to Now Playing with -360° spin & grow
+                t < 780f -> {
+                    val p = (t / 780f).coerceIn(0f, 1f)
+                    val e = easeInOutCubic(p)
+                    val inv = 1f - e
+                    val ctrlX = bottomSpotX + 48.dp
+                    val ctrlY = bottomSpotY * 0.22f
+                    currentX = topSpotX * (inv * inv) + ctrlX * (2f * inv * e) + bottomSpotX * (e * e)
+                    currentY = topSpotY * (inv * inv) + ctrlY * (2f * inv * e) + bottomSpotY * (e * e)
+                    currentSize = topDiameter + (bottomDiameter - topDiameter) * e
+                    spinDeg = -360f * e
+                }
+                // Reverse Mode 2 Phase 2 (780..1100 ms): Soft bounce settle in Now Playing
+                t < 1_100f -> {
+                    val p = ((t - 780f) / 320f).coerceIn(0f, 1f)
+                    val bounceDp = (kotlin.math.abs(kotlin.math.sin(p * Math.PI.toFloat() * 2f)) * (1f - p) * 6f).dp
+                    currentX = bottomSpotX
+                    currentY = bottomSpotY + bounceDp
+                    currentSize = bottomDiameter
+                    spinDeg = 0f
+                }
+                else -> {
+                    currentX = bottomSpotX
+                    currentY = bottomSpotY
+                    currentSize = bottomDiameter
+                }
+            }
+        } else if (isReturningToNowPlaying) {
+            when {
+                // Reverse Mode 1 Phase 1 (0..420 ms): Slip up behind the top bezel from top-left
+                t < 420f -> {
+                    val p = (t / 420f).coerceIn(0f, 1f)
+                    val easeIn = p * p
+                    val endTop = -36.dp
+                    currentX = topSpotX
+                    currentY = topSpotY + (endTop - topSpotY) * easeIn
+                    currentSize = topDiameter
+                }
+                // Reverse Mode 1 Phase 2 (420..1150 ms): Emerge up from behind the bottom bezel into Now Playing with bounce!
+                t < 1_150f -> {
+                    val p = ((t - 420f) / 730f).coerceIn(0f, 1f)
+                    val bounce = easeOutBounceCubic(p)
+                    val startBottom = screenH + 56.dp
+                    currentX = bottomSpotX
+                    currentY = startBottom + (bottomSpotY - startBottom) * bounce
+                    currentSize = topDiameter + (bottomDiameter - topDiameter) * p.coerceIn(0f, 1f)
+                }
+                else -> {
+                    currentX = bottomSpotX
+                    currentY = bottomSpotY
+                    currentSize = bottomDiameter
+                }
+            }
+        } else if (activeExitIsArc) {
             when {
                 // Mode 2 Phase 1 (0..820 ms): Launch immediately in a smooth curved arc with 360° spin & shrink
                 t < 820f -> {
