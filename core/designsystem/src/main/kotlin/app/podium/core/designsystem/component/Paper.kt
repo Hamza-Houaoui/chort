@@ -36,12 +36,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
@@ -93,6 +98,19 @@ val LocalColumnTransition = staticCompositionLocalOf<AnimatedVisibilityScope?> {
 /** Horizontal padding rows use; paper lists narrow it because the peek strip already gives air. */
 val LocalRowPadding = staticCompositionLocalOf { 20.dp }
 
+/** Appearance Modes (Settings > Appearance > Mode): Mode 1 gradient, Mode 2 blurred sub-menu preview, Mode 3 left breadcrumb arch. */
+data class PaperModes(
+    val menuGradientEnabled: Boolean = false,
+    val menuGradientColor: Color = Color(app.podium.core.designsystem.theme.VirtualDisplay.DEFAULT_MENU_GRADIENT),
+    val subMenuBlurPreview: Boolean = false,
+    val breadcrumbArchEnabled: Boolean = false,
+)
+
+val LocalPaperModes = staticCompositionLocalOf { PaperModes() }
+
+/** Maps a focused menu label to its sub-options for Mode 2 blurred right-side preview. */
+val LocalSubMenuPreviewResolver = staticCompositionLocalOf<(String) -> List<String>?> { { null } }
+
 /** What the next column looks like, previewed beyond the arc while an item is focused (D-29). */
 sealed interface MenuPreview {
     data object None : MenuPreview
@@ -106,8 +124,17 @@ sealed interface MenuPreview {
     /** A colour (a finish, a theme's display). */
     data class Swatch(val color: Color) : MenuPreview
 
+    /** Mode 2: blurred sub-options list for the focused tab. */
+    data class SubOptions(val labels: List<String>) : MenuPreview
+
     /** The device's own geometry (settings). */
     data object Instrument : MenuPreview
+
+    /** Monochrome YouTube line-art logo in the active theme colors. */
+    data object YouTubeLogo : MenuPreview
+
+    /** Classic iPod Voice Memos monochrome microphone logo in the active theme colors. */
+    data object VoiceMemoLogo : MenuPreview
 }
 
 /**
@@ -123,6 +150,32 @@ fun PreviewPane(preview: MenuPreview, size: Dp, modifier: Modifier = Modifier) {
     when (preview) {
         MenuPreview.None -> Unit
         is MenuPreview.Swatch -> Box(distance.size(size).clip(previewShape(corner)).background(preview.color))
+        is MenuPreview.SubOptions -> {
+            val type = PodiumTheme.type
+            val blurMod = if (Build.VERSION.SDK_INT >= 31) Modifier.blur(0.65.dp) else Modifier
+            androidx.compose.foundation.layout.Column(
+                modifier = modifier
+                    .graphicsLayer {
+                        alpha = if (colors.isDark) 0.84f else 0.90f
+                        scaleX = Paper.DistantScale
+                        scaleY = Paper.DistantScale
+                    }
+                    .size(size)
+                    .then(blurMod)
+                    .padding(horizontal = 4.dp, vertical = 6.dp),
+                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp, androidx.compose.ui.Alignment.CenterVertically),
+            ) {
+                preview.labels.take(6).forEachIndexed { idx, label ->
+                    val alpha = (0.92f - idx * 0.08f).coerceAtLeast(0.48f)
+                    app.podium.core.designsystem.type.PodiumText(
+                        text = label,
+                        style = type.rowSecondary,
+                        color = colors.labelPrimary.copy(alpha = alpha),
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
         is MenuPreview.Artwork, is MenuPreview.Carousel -> {
             val uris = if (preview is MenuPreview.Artwork) preview.uris else (preview as MenuPreview.Carousel).uris
             if (uris.isEmpty()) return
@@ -173,6 +226,99 @@ fun PreviewPane(preview: MenuPreview, size: Dp, modifier: Modifier = Modifier) {
                 val a = Math.toRadians(angle.value.toDouble() - 90)
                 val ringR = (r + r * 0.38f) / 2f
                 drawCircle(colors.labelPrimary, radius = 4.dp.toPx(), center = Offset(c.x + ringR * cos(a).toFloat(), c.y + ringR * sin(a).toFloat()))
+            }
+        }
+        MenuPreview.YouTubeLogo -> {
+            Canvas(distance.size(size)) {
+                val c = center
+                val minDim = this.size.minDimension
+                val w = minDim * 0.88f
+                val h = w * 0.66f
+                val topLeft = Offset(c.x - w / 2f, c.y - h / 2f)
+                val stroke = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                drawRoundRect(
+                    color = colors.labelSecondary,
+                    topLeft = topLeft,
+                    size = Size(w, h),
+                    cornerRadius = CornerRadius(h * 0.28f, h * 0.28f),
+                    style = stroke,
+                )
+                val triH = h * 0.42f
+                val triW = w * 0.24f
+                val triLeft = c.x - triW * 0.42f
+                val triPath = Path().apply {
+                    moveTo(triLeft, c.y - triH / 2f)
+                    lineTo(triLeft + triW, c.y)
+                    lineTo(triLeft, c.y + triH / 2f)
+                    close()
+                }
+                drawPath(triPath, color = colors.labelPrimary, style = stroke)
+            }
+        }
+        MenuPreview.VoiceMemoLogo -> {
+            Canvas(distance.size(size)) {
+                val c = center
+                val d = this.size.minDimension * 0.86f
+                val mainStroke = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                val grilleStroke = Stroke(width = 1.1.dp.toPx(), cap = StrokeCap.Round)
+
+                // Classic iPod studio mic capsule
+                val capW = d * 0.30f
+                val capH = d * 0.48f
+                val capTop = c.y - d * 0.44f
+                val capLeft = c.x - capW / 2f
+                drawRoundRect(
+                    color = colors.labelPrimary,
+                    topLeft = Offset(capLeft, capTop),
+                    size = Size(capW, capH),
+                    cornerRadius = CornerRadius(capW / 2f, capW / 2f),
+                    style = mainStroke,
+                )
+
+                // Subtle horizontal grille lines inside the capsule
+                val grilleHalfW = capW * 0.26f
+                for (i in 0..2) {
+                    val gy = capTop + capH * (0.28f + i * 0.16f)
+                    drawLine(
+                        color = colors.labelSecondary,
+                        start = Offset(c.x - grilleHalfW, gy),
+                        end = Offset(c.x + grilleHalfW, gy),
+                        strokeWidth = grilleStroke.width,
+                        cap = StrokeCap.Round,
+                    )
+                }
+
+                // U-shaped cradle around lower capsule
+                val cradleR = capW * 0.84f
+                val cradleCenterY = capTop + capH - capW * 0.48f
+                drawArc(
+                    color = colors.labelSecondary,
+                    startAngle = 0f,
+                    sweepAngle = 180f,
+                    useCenter = false,
+                    topLeft = Offset(c.x - cradleR, cradleCenterY - cradleR),
+                    size = Size(cradleR * 2f, cradleR * 2f),
+                    style = mainStroke,
+                )
+
+                // Vertical stem + horizontal base
+                val stemTop = cradleCenterY + cradleR
+                val baseY = c.y + d * 0.42f
+                drawLine(
+                    color = colors.labelSecondary,
+                    start = Offset(c.x, stemTop),
+                    end = Offset(c.x, baseY),
+                    strokeWidth = mainStroke.width,
+                    cap = StrokeCap.Round,
+                )
+                val baseHalfW = d * 0.20f
+                drawLine(
+                    color = colors.labelPrimary,
+                    start = Offset(c.x - baseHalfW, baseY),
+                    end = Offset(c.x + baseHalfW, baseY),
+                    strokeWidth = mainStroke.width,
+                    cap = StrokeCap.Round,
+                )
             }
         }
     }
@@ -302,6 +448,17 @@ internal fun Modifier.distant(): Modifier {
         scaleX = Paper.DistantScale
         scaleY = Paper.DistantScale
     }.blur(1.5.dp)
+}
+
+/** Clearer left miniature glimpse so the previous menu's focused item stays easily legible. */
+@Composable
+fun Modifier.distantClear(): Modifier {
+    val dark = PodiumTheme.colors.isDark
+    return graphicsLayer {
+        alpha = if (dark) 0.78f else 0.84f
+        scaleX = Paper.DistantScale
+        scaleY = Paper.DistantScale
+    }.blur(0.65.dp)
 }
 
 /**

@@ -73,7 +73,7 @@ import app.podium.core.interaction.WheelContext
 import app.podium.core.interaction.rememberFocusListState
 import app.podium.core.interaction.rememberPodiumHaptics
 
-private enum class SettingsRow { Language, Appearance, PodiumSpace, FullScreen, TitleBarBattery, NowPlayingLayout, HideNowPlayingTray, Keyboard, MusicFolders, OnlineSources, CustomSources, SmartDownloads, Autoplay, Recommendations, AvoidRepeats, Crossfade, Equalizer, SleepTimer, OnlineLyrics, LyricsCredit, Haptics, Clicks, StartupSound, SoftwareUpdate }
+private enum class SettingsRow { Language, Appearance, Keyboard, MusicFolders, OnlineSources, CustomSources, SmartDownloads, Autoplay, Recommendations, AvoidRepeats, Crossfade, Equalizer, SleepTimer, OnlineLyrics, LyricsCredit, Haptics, Clicks, StartupSound, SoftwareUpdate }
 
 /** Settings ▸ Software update (D-99): the version, a check now, and whether Podium checks by itself. */
 interface SoftwareUpdateSettings {
@@ -129,6 +129,7 @@ fun SettingsScreen(
     val podiumKeyboard by repository.podiumKeyboard.collectAsStateWithLifecycle()
     val hideNowPlayingTray by repository.hideNowPlayingTray.collectAsStateWithLifecycle()
     val nostalgicNowPlaying by repository.nostalgicNowPlaying.collectAsStateWithLifecycle()
+    val nowPlayingStyle by repository.nowPlayingStyle.collectAsStateWithLifecycle()
     val immersive by repository.immersive.collectAsStateWithLifecycle()
     val titleBarBattery by repository.titleBarBattery.collectAsStateWithLifecycle()
     val folderList by folders.folders.collectAsStateWithLifecycle()
@@ -171,23 +172,6 @@ fun SettingsScreen(
         when (rows[index]) {
             SettingsRow.Language -> onLanguage()
             SettingsRow.Appearance -> onAppearance()
-            SettingsRow.PodiumSpace -> onPodiumSpace()
-            SettingsRow.FullScreen -> {
-                haptics.toggle(on = !immersive)
-                repository.setImmersive(!immersive)
-            }
-            SettingsRow.TitleBarBattery -> if (!immersive) haptics.reject() else {
-                haptics.toggle(on = !titleBarBattery)
-                repository.setTitleBarBattery(!titleBarBattery)
-            }
-            SettingsRow.NowPlayingLayout -> {
-                haptics.toggle(on = !nostalgicNowPlaying)
-                repository.setNostalgicNowPlaying(!nostalgicNowPlaying)
-            }
-            SettingsRow.HideNowPlayingTray -> {
-                haptics.toggle(on = !hideNowPlayingTray)
-                repository.setHideNowPlayingTray(!hideNowPlayingTray)
-            }
             SettingsRow.Keyboard -> {
                 haptics.toggle(on = !podiumKeyboard)
                 repository.setPodiumKeyboard(!podiumKeyboard)
@@ -287,40 +271,16 @@ fun SettingsScreen(
                 value = if (currentLanguage == AppLanguage.SYSTEM) strings.systemDefault else currentLanguage.nativeName,
             )
             SettingsRow.Appearance -> MenuRow(strings.appearance, focused, value = strings.displayThemeLabel(appearance.display))
-            SettingsRow.PodiumSpace -> MenuRow(
-                strings.deviceBody,
-                focused,
-                value = if (strings is app.podium.core.designsystem.l10n.ArabicStrings) "ملصقات، مساعدة، إيقاف" else "Stickers, help, turn off",
-            )
-            // Typing: the Wheel becomes Podium's keyboard, or the phone's keyboard appears (D-45).
-            // Full screen (D-85): the phone's bars hidden; the title bar shows the time and the battery.
-            SettingsRow.FullScreen -> MenuRow(strings.fullScreen, focused, value = if (immersive) strings.on else strings.off, showChevron = false)
-            SettingsRow.TitleBarBattery -> MenuRow(
-                strings.batteryInTitleBar,
-                focused,
-                value = if (!immersive) strings.fullScreenOnly else if (titleBarBattery) strings.shown else strings.hidden,
-                enabled = immersive,
-                showChevron = false,
-            )
-            // Nostalgic (D-109): the original's own Now Playing, with no playback keys on the display.
-            SettingsRow.NowPlayingLayout -> MenuRow(
-                strings.nowPlayingLayout,
-                focused,
-                value = if (nostalgicNowPlaying) strings.nostalgic else strings.modern,
-                showChevron = false,
-            )
-            // The tray slides away on Now Playing when nothing has been touched (D-108); the Wheel's
-            // next move only brings it back.
-            SettingsRow.HideNowPlayingTray -> MenuRow(
-                strings.hideNowPlayingTray,
-                focused,
-                value = if (hideNowPlayingTray) strings.hidesWhenIdle else strings.alwaysShown,
-                showChevron = false,
-            )
             SettingsRow.Keyboard -> MenuRow(
                 strings.keyboard,
                 focused,
-                value = if (podiumKeyboard) "CHORT" else if (strings is app.podium.core.designsystem.l10n.ArabicStrings) "الهاتف" else "Phone",
+                value = if (podiumKeyboard) "CHORT" else when (strings) {
+                    is app.podium.core.designsystem.l10n.ArabicStrings -> "الهاتف"
+                    is app.podium.core.designsystem.l10n.FrenchStrings -> "Téléphone"
+                    is app.podium.core.designsystem.l10n.TurkishStrings -> "Telefon"
+                    is app.podium.core.designsystem.l10n.RussianStrings -> "Телефон"
+                    else -> "Phone"
+                },
                 showChevron = false,
             )
             SettingsRow.MusicFolders -> MenuRow(
@@ -511,8 +471,8 @@ fun ThemeScreen(repository: DeviceSettingsRepository) {
     }
 }
 
-/** What the colour editor colours: the body's Custom finish, or the display's background. */
-enum class ColorTarget { Finish, DisplayBackground }
+/** What the colour editor colours: the body's Custom finish, the display's background, or Mode 1 menu gradient. */
+enum class ColorTarget { Finish, DisplayBackground, MenuGradient }
 
 /**
  * Custom colour editor: type a hex code, or turn the wheel to walk the hue. The device previews
@@ -529,7 +489,11 @@ fun CustomColorScreen(repository: DeviceSettingsRepository, target: ColorTarget 
     val haptics = rememberPodiumHaptics()
     val focusManager = LocalFocusManager.current
     val appearance = remember { repository.appearance.value }
-    val initial = if (target == ColorTarget.Finish) appearance.customArgb else appearance.screen.solidArgb
+    val initial = when (target) {
+        ColorTarget.Finish -> appearance.customArgb
+        ColorTarget.DisplayBackground -> appearance.screen.solidArgb
+        ColorTarget.MenuGradient -> appearance.screen.menuGradientArgb
+    }
     var text by remember { mutableStateOf(formatHex(initial).drop(1)) }
     var invalid by remember { mutableStateOf(false) }
     var argb by remember { mutableIntStateOf(initial) }
@@ -547,6 +511,12 @@ fun CustomColorScreen(repository: DeviceSettingsRepository, target: ColorTarget 
             screen = appearance.screen.copy(
                 solidArgb = color,
                 background = if (appearance.screen.background == DisplayBackground.NONE) DisplayBackground.SOLID else appearance.screen.background,
+            ),
+        )
+        ColorTarget.MenuGradient -> appearance.copy(
+            screen = appearance.screen.copy(
+                menuGradientArgb = color,
+                menuGradientEnabled = true,
             ),
         )
     }

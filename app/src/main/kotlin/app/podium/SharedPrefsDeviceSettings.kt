@@ -57,6 +57,12 @@ class SharedPrefsDeviceSettings(context: Context) : DeviceSettingsRepository {
                 imageUri = prefs.getString(KEY_DISPLAY_IMAGE, null),
                 imageOpacity = prefs.getFloat(KEY_DISPLAY_IMAGE_OPACITY, VirtualDisplay.DEFAULT_IMAGE_OPACITY).coerceIn(0f, 1f),
                 contrast = enumOf(prefs.getString(KEY_DISPLAY_CONTRAST, null), TextContrast.STANDARD),
+                menuGradientEnabled = prefs.getBoolean(KEY_MENU_GRADIENT_ENABLED, false),
+                menuGradientArgb = prefs.getInt(KEY_MENU_GRADIENT_ARGB, VirtualDisplay.DEFAULT_MENU_GRADIENT) or OPAQUE,
+                subMenuBlurPreview = prefs.getBoolean(KEY_SUBMENU_BLUR_PREVIEW, false),
+                breadcrumbArchEnabled = prefs.getBoolean(KEY_BREADCRUMB_ARCH_ENABLED, false),
+                showHeaderTitle = prefs.getBoolean(KEY_SHOW_HEADER_TITLE, true),
+                showStatusPill = prefs.getBoolean(KEY_SHOW_STATUS_PILL, true),
             ),
         ),
     )
@@ -143,12 +149,34 @@ class SharedPrefsDeviceSettings(context: Context) : DeviceSettingsRepository {
         prefs.edit { putBoolean(KEY_HIDE_TRAY, enabled) }
     }
 
-    private val _nostalgicNowPlaying = MutableStateFlow(prefs.getBoolean(KEY_NOSTALGIC, false))
+    private val _nowPlayingStyle = MutableStateFlow(
+        prefs.getString(KEY_NOW_PLAYING_STYLE, null)?.let { name ->
+            runCatching { app.podium.core.designsystem.shell.NowPlayingStyle.valueOf(name) }.getOrNull()
+        } ?: if (prefs.getBoolean(KEY_NOSTALGIC, false)) {
+            app.podium.core.designsystem.shell.NowPlayingStyle.NOSTALGIC
+        } else {
+            app.podium.core.designsystem.shell.NowPlayingStyle.MODERN
+        },
+    )
+    override val nowPlayingStyle: StateFlow<app.podium.core.designsystem.shell.NowPlayingStyle> = _nowPlayingStyle.asStateFlow()
+
+    override fun setNowPlayingStyle(style: app.podium.core.designsystem.shell.NowPlayingStyle) {
+        _nowPlayingStyle.value = style
+        _nostalgicNowPlaying.value = style == app.podium.core.designsystem.shell.NowPlayingStyle.NOSTALGIC
+        prefs.edit {
+            putString(KEY_NOW_PLAYING_STYLE, style.name)
+            putBoolean(KEY_NOSTALGIC, style == app.podium.core.designsystem.shell.NowPlayingStyle.NOSTALGIC)
+        }
+    }
+
+    private val _nostalgicNowPlaying = MutableStateFlow(_nowPlayingStyle.value == app.podium.core.designsystem.shell.NowPlayingStyle.NOSTALGIC)
     override val nostalgicNowPlaying: StateFlow<Boolean> = _nostalgicNowPlaying.asStateFlow()
 
     override fun setNostalgicNowPlaying(enabled: Boolean) {
-        _nostalgicNowPlaying.value = enabled
-        prefs.edit { putBoolean(KEY_NOSTALGIC, enabled) }
+        setNowPlayingStyle(
+            if (enabled) app.podium.core.designsystem.shell.NowPlayingStyle.NOSTALGIC
+            else app.podium.core.designsystem.shell.NowPlayingStyle.MODERN,
+        )
     }
 
     override fun setAutoplay(enabled: Boolean) {
@@ -204,6 +232,12 @@ class SharedPrefsDeviceSettings(context: Context) : DeviceSettingsRepository {
                 if (imageUri != null) putString(KEY_DISPLAY_IMAGE, imageUri) else remove(KEY_DISPLAY_IMAGE)
                 putFloat(KEY_DISPLAY_IMAGE_OPACITY, imageOpacity)
                 putString(KEY_DISPLAY_CONTRAST, contrast.name)
+                putBoolean(KEY_MENU_GRADIENT_ENABLED, menuGradientEnabled)
+                putInt(KEY_MENU_GRADIENT_ARGB, menuGradientArgb)
+                putBoolean(KEY_SUBMENU_BLUR_PREVIEW, subMenuBlurPreview)
+                putBoolean(KEY_BREADCRUMB_ARCH_ENABLED, breadcrumbArchEnabled)
+                putBoolean(KEY_SHOW_HEADER_TITLE, showHeaderTitle)
+                putBoolean(KEY_SHOW_STATUS_PILL, showStatusPill)
             }
         }
     }
@@ -295,6 +329,13 @@ class SharedPrefsDeviceSettings(context: Context) : DeviceSettingsRepository {
         const val KEY_DISPLAY_IMAGE = "display_image_uri"
         const val KEY_DISPLAY_IMAGE_OPACITY = "display_image_opacity"
         const val KEY_DISPLAY_CONTRAST = "display_contrast"
+        const val KEY_MENU_GRADIENT_ENABLED = "menu_gradient_enabled"
+        const val KEY_MENU_GRADIENT_ARGB = "menu_gradient_argb"
+        const val KEY_SUBMENU_BLUR_PREVIEW = "submenu_blur_preview"
+        const val KEY_BREADCRUMB_ARCH_ENABLED = "breadcrumb_arch_enabled"
+        const val KEY_SHOW_HEADER_TITLE = "show_header_title"
+        const val KEY_SHOW_STATUS_PILL = "show_status_pill"
+        const val KEY_NOW_PLAYING_STYLE = "now_playing_style"
         const val OPAQUE = 0xFF000000.toInt()
 
         inline fun <reified E : Enum<E>> enumOf(name: String?, default: E): E =

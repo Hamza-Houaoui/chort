@@ -80,6 +80,18 @@ data class VirtualDisplay(
     /** 0–1: how strongly the image shows over the solid colour. */
     val imageOpacity: Float = DEFAULT_IMAGE_OPACITY,
     val contrast: TextContrast = TextContrast.STANDARD,
+    /** Mode 1: curved gradient fill inside the menu arc. */
+    val menuGradientEnabled: Boolean = false,
+    /** Mode 1: ARGB colour for the menu arc gradient. */
+    val menuGradientArgb: Int = DEFAULT_MENU_GRADIENT,
+    /** Mode 2: show blurred sub-options on the right side beyond the arc. */
+    val subMenuBlurPreview: Boolean = false,
+    /** Mode 3: draw a curved arch from the left miniature up to the sub-tab title. */
+    val breadcrumbArchEnabled: Boolean = false,
+    /** Mode option: show or hide the sub-tab title text next to the top-left header icon. */
+    val showHeaderTitle: Boolean = true,
+    /** Mode option: show or hide the top-right status pill (output device / play-pause). */
+    val showStatusPill: Boolean = true,
 ) {
     /**
      * The background a theme actually shows. Carbon keeps its own display (D-101: the album lights it,
@@ -95,6 +107,8 @@ data class VirtualDisplay(
         /** A deep slate: a calm first choice that reads with light ink. */
         const val DEFAULT_SOLID = 0xFF22313A.toInt()
         const val DEFAULT_IMAGE_OPACITY = 0.5f
+        /** Mode 1 default gradient tint: cool steel-slate matching the curved glass aesthetic. */
+        const val DEFAULT_MENU_GRADIENT = 0xFF6B778D.toInt()
     }
 }
 

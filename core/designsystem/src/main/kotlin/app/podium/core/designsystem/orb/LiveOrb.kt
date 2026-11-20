@@ -83,6 +83,7 @@ fun LiveOrb(
         )
         Canvas(Modifier.matchParentSize()) {
             @Suppress("UNUSED_EXPRESSION") face.revision
+            drawOrbHeadphones(face)
             drawOrbSparks(face, sparks)
             drawOrbEyes(face, ink)
         }

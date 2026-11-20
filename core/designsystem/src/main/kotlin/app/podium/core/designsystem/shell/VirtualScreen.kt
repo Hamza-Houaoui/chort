@@ -248,6 +248,7 @@ fun ScreenHeader(
     leftAction: (@Composable () -> Unit)? = null,
     /** Optional custom composable shown in place of the text title (e.g. dynamic menu icon on Home). */
     titleContent: (@Composable () -> Unit)? = null,
+    showStatusPill: Boolean = true,
 ) {
     val haptics = rememberPodiumHaptics()
     val colors = PodiumTheme.colors
@@ -443,7 +444,10 @@ fun ScreenHeader(
                 }
             }
             Spacer(Modifier.width(Spacing.edge))
-            StatusPills(status, Modifier.testTag(StatusTestTag))
+            val visibleStatus = if (showStatusPill) status else status.filter { it.key != "output" && it.key != "play" }
+            if (visibleStatus.isNotEmpty()) {
+                StatusPills(visibleStatus, Modifier.testTag(StatusTestTag))
+            }
         }
         if (songNameItems.isNotEmpty()) {
             Box(

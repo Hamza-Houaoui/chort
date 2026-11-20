@@ -1183,38 +1183,9 @@ fun YouTubeFullscreenOverlay(
                     },
                     modifier = Modifier.fillMaxSize(),
                 )
-
-                // Top-left Exit Fullscreen button styled with the app theme
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(start = 12.dp, top = 12.dp)
-                        .size(34.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(
-                                    barTopColor.copy(alpha = 0.92f),
-                                    barBottomColor.copy(alpha = 0.92f),
-                                ),
-                            ),
-                        )
-                        .border(1.dp, barSeparator.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
-                        .clickable { YouTubeController.exitFullscreen() },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    BasicText(
-                        text = "⤡",
-                        style = TextStyle(
-                            color = barInk,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                        ),
-                    )
-                }
             }
 
-            // Bottom themed control bar: Volume & Brightness
+            // Bottom themed control bar: Volume, Exit Fullscreen, & Brightness
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1230,7 +1201,7 @@ fun YouTubeFullscreenOverlay(
                     )
                     .padding(horizontal = 12.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 // Volume Control
                 ThemedSliderPill(
@@ -1252,6 +1223,26 @@ fun YouTubeFullscreenOverlay(
                     },
                     modifier = Modifier.weight(1f),
                 )
+
+                // Center Exit Fullscreen button between Volume and Brightness bars
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(barInk.copy(alpha = 0.10f))
+                        .border(1.dp, barSeparator.copy(alpha = 0.55f), RoundedCornerShape(10.dp))
+                        .clickable { YouTubeController.exitFullscreen() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    BasicText(
+                        text = "⤡",
+                        style = TextStyle(
+                            color = barInk,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                        ),
+                    )
+                }
 
                 // Brightness Control
                 ThemedSliderPill(

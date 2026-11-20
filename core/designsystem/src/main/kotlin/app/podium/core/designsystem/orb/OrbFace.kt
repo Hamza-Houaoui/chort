@@ -4,7 +4,11 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -97,6 +101,15 @@ class OrbFace {
     /** A burst of little stars off its head, 0 (none) through 1 (gone). */
     var spark = 0f
 
+    /** 0 (relaxed on pause) to 1 (snugly worn while playing): 3D mascot headphones. */
+    var headphones = 0f
+
+    /** 0..1 bass thump on the headphone ear cups while playing. */
+    var bassBounce = 0f
+
+    /** 0..1 heart-eyes celebration when the listener likes/favorites the song (♥ ♥). */
+    var heartEyes = 0f
+
     companion object {
         /** The eyes sit this far above the body's middle. */
         const val EyeAbove = 0.03f
@@ -150,6 +163,31 @@ fun DrawScope.drawOrbEyes(face: OrbFace, ink: Color) {
     val bend = face.eyeBend.coerceIn(-1f, 1f)
     scale(1f + (face.scaleX - 1f) * give, 1f + (face.scaleY - 1f) * give, middle) {
         rotate(face.tilt, middle) {
+            if (face.heartEyes > 0.05f) {
+                val heartAlpha = face.heartEyes.coerceIn(0f, 1f)
+                val pulseScale = 1f + 0.14f * sin(face.heartEyes * Math.PI.toFloat() * 6f)
+                val heartColor = Color(0xFFFF2D55).copy(alpha = heartAlpha)
+                for (side in -1..1 step 2) {
+                    val at = Offset(middle.x + side * gapX + gx, y)
+                    val hs = d * 0.145f * pulseScale
+                    val hp = Path().apply {
+                        moveTo(at.x, at.y + hs * 0.68f)
+                        cubicTo(
+                            at.x - hs * 1.15f, at.y + hs * 0.05f,
+                            at.x - hs * 0.65f, at.y - hs * 0.85f,
+                            at.x, at.y - hs * 0.28f,
+                        )
+                        cubicTo(
+                            at.x + hs * 0.65f, at.y - hs * 0.85f,
+                            at.x + hs * 1.15f, at.y + hs * 0.05f,
+                            at.x, at.y + hs * 0.68f,
+                        )
+                        close()
+                    }
+                    drawPath(hp, heartColor)
+                }
+                if (heartAlpha >= 0.92f) return@rotate
+            }
             // The left eye first; `side` is −1 on the left, 1 on the right.
             for (side in -1..1 step 2) {
                 val at = Offset(middle.x + side * gapX + gx, y)
@@ -235,3 +273,112 @@ private const val BendReach = 0.40f
 private val SparkAngles = floatArrayOf(-142f, -112f, -86f, -58f, -32f)
 private val SparkReach = floatArrayOf(0.55f, 0.82f, 1f, 0.72f, 0.48f)
 private val SparkSize = floatArrayOf(0.070f, 0.052f, 0.086f, 0.048f, 0.066f)
+
+/**
+ * Draws the CHORT mascot's 3D silver/black headphones around the live orb:
+ * - While playing ([OrbFace.headphones] -> 1f): snugly fitted over the top and sides, pulsing with [OrbFace.bassBounce].
+ * - While paused ([OrbFace.headphones] -> 0f): relaxed slightly downward and wider at the sides.
+ */
+fun DrawScope.drawOrbHeadphones(face: OrbFace) {
+    val d = size.minDimension
+    if (d <= 0f) return
+    val wear = face.headphones.coerceIn(0f, 1f)
+    val bass = face.bassBounce.coerceIn(0f, 1f) * wear
+    val middle = Offset(
+        size.width / 2f + face.shiftX * d * OrbFace.RollTravel,
+        size.height / 2f - face.bob * d * OrbFace.BobTravel,
+    )
+    val relaxDrop = (1f - wear) * d * 0.07f
+    val relaxSpread = (1f - wear) * d * 0.035f
+    val bassPump = bass * d * 0.032f
+
+    scale(face.scaleX, face.scaleY, middle) {
+        rotate(face.tilt, middle) {
+            val bandR = d * 0.53f + relaxSpread + bassPump * 0.4f
+            val bandCenterY = middle.y + relaxDrop * 0.6f
+            val bandRect = Rect(
+                middle.x - bandR,
+                bandCenterY - bandR * 1.05f,
+                middle.x + bandR,
+                bandCenterY + bandR * 0.95f,
+            )
+            val alpha = 0.55f + 0.45f * wear
+
+            // Metallic silver outer headband
+            drawArc(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFFF6F8FC).copy(alpha = alpha),
+                        Color(0xFF8C95A5).copy(alpha = alpha),
+                    ),
+                    startY = bandRect.top,
+                    endY = bandCenterY,
+                ),
+                startAngle = 195f,
+                sweepAngle = 150f,
+                useCenter = false,
+                topLeft = bandRect.topLeft,
+                size = bandRect.size,
+                style = Stroke(width = d * 0.085f, cap = StrokeCap.Round),
+            )
+            // Dark charcoal inner headband pad
+            drawArc(
+                color = Color(0xFF222630).copy(alpha = alpha),
+                startAngle = 200f,
+                sweepAngle = 140f,
+                useCenter = false,
+                topLeft = Offset(bandRect.left + d * 0.025f, bandRect.top + d * 0.025f),
+                size = Size(bandRect.width - d * 0.05f, bandRect.height - d * 0.05f),
+                style = Stroke(width = d * 0.048f, cap = StrokeCap.Round),
+            )
+
+            // Left & Right 3D Ear Cups
+            val cupOffsetX = d * 0.51f + relaxSpread + bassPump
+            val cupCenterY = middle.y + d * 0.02f + relaxDrop
+            val outerW = d * (0.145f + bass * 0.02f)
+            val outerH = d * (0.36f + bass * 0.03f)
+            val padW = d * 0.115f
+            val padH = d * (0.40f + bass * 0.03f)
+
+            for (side in -1..1 step 2) {
+                val cx = middle.x + side * cupOffsetX
+                val cupCenter = Offset(cx, cupCenterY)
+                val cupTilt = side * (7f + (1f - wear) * 8f - bass * 4f)
+                val shellShift = side * d * 0.025f
+                val padShift = -side * d * 0.04f
+
+                rotate(cupTilt, cupCenter) {
+                    // Silver metallic outer shell
+                    drawRoundRect(
+                        brush = Brush.linearGradient(
+                            colors = listOf(
+                                Color(0xFFF7F9FC).copy(alpha = alpha),
+                                Color(0xFFB8C0CE).copy(alpha = alpha),
+                                Color(0xFF798290).copy(alpha = alpha),
+                            ),
+                            start = Offset(cupCenter.x - outerW, cupCenter.y - outerH / 2f),
+                            end = Offset(cupCenter.x + outerW, cupCenter.y + outerH / 2f),
+                        ),
+                        topLeft = Offset(cupCenter.x + shellShift - outerW / 2f, cupCenter.y - outerH / 2f),
+                        size = Size(outerW, outerH),
+                        cornerRadius = CornerRadius(outerW * 0.55f, outerW * 0.55f),
+                    )
+                    // Dark matte cushion pad
+                    drawRoundRect(
+                        brush = Brush.linearGradient(
+                            colors = listOf(
+                                Color(0xFF3A3F4B).copy(alpha = alpha),
+                                Color(0xFF171A21).copy(alpha = alpha),
+                            ),
+                            start = Offset(cupCenter.x, cupCenter.y - padH / 2f),
+                            end = Offset(cupCenter.x, cupCenter.y + padH / 2f),
+                        ),
+                        topLeft = Offset(cupCenter.x + padShift - padW / 2f, cupCenter.y - padH / 2f),
+                        size = Size(padW, padH),
+                        cornerRadius = CornerRadius(padW * 0.5f, padW * 0.5f),
+                    )
+                }
+            }
+        }
+    }
+}

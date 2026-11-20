@@ -12,6 +12,14 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import kotlin.math.abs
 import kotlin.math.sin
+import kotlin.math.sqrt
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Path
+import app.podium.core.designsystem.component.LocalPaperModes
+import app.podium.core.designsystem.component.distantClear
+import app.podium.core.designsystem.component.drawLens
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -216,6 +224,257 @@ internal fun NostalgicPortrait(p: NowPlayingParts) {
     }
 }
 
+/**
+ * CHORT signature Arch Now Playing layout (Settings ▸ Now Playing ▸ Arch):
+ * - Far-left middle: shrunken softly blurred track metadata (index, album, artist), like the main menu's previous tab miniature.
+ * - Center: curved ")" half-circle arch menu with the track/station title at the very top of the arc and all actions (icon + label) riding the curve below it, complete with Mode 1 curved gradient and the blue selection dot.
+ * - Far-right: large artwork positioned so 3/4 is visible on the right edge.
+ * - Bottom: progress/time bar in place of the horizontal action bar; center Play/Pause button and quality subtitle hidden.
+ */
+@Composable
+internal fun ArchPortrait(p: NowPlayingParts) {
+    val colors = PodiumTheme.colors
+    val type = PodiumTheme.type
+    val motion = PodiumTheme.motion
+    val tone = LocalAlbumTone.current
+    val modes = LocalPaperModes.current
+    val actions = p.actions
+    val safeFocus = p.actionFocus.coerceIn(0, (actions.size - 1).coerceAtLeast(0))
+
+    // Exact same spring as FocusList so movement feels 100% identical to the main menu
+    val focusPos = remember { Animatable(safeFocus.toFloat()) }
+    LaunchedEffect(safeFocus) {
+        if (motion.reduced) focusPos.snapTo(safeFocus.toFloat())
+        else focusPos.animateTo(safeFocus.toFloat(), motion.focus())
+    }
+
+    Column(Modifier.fillMaxSize()) {
+        BoxWithConstraints(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .clipToBounds(),
+        ) {
+            val stageW = maxWidth
+            val stageH = maxHeight
+            val padTop = 6.dp
+            val padBottom = 6.dp
+            val readable = (stageH - padTop - padBottom).coerceAtLeast(1.dp)
+            val centreY = padTop + readable / 2
+            val apexX = stageW * 0.60f
+            val radius = readable * 0.92f
+            val arcGap = 12.dp
+            val rowWidth = (stageW * 0.42f).coerceAtLeast(124.dp)
+
+            fun bend(dy: Dp): Dp {
+                val r = radius.value
+                val y = dy.value.coerceIn(-r * 0.95f, r * 0.95f)
+                return (r - sqrt((r * r - y * y).coerceAtLeast(0f))).dp
+            }
+
+            fun arcX(y: Dp): Dp = apexX - bend(y - centreY)
+
+            // Total rows along the arch: purely the Action items (Title sits above the artwork)
+            val totalRows = actions.size.coerceAtLeast(1)
+            val rowStep = (readable / totalRows).coerceIn(36.dp, 50.dp)
+            val blockHeight = rowStep * totalRows
+            val blockTop = (centreY - blockHeight / 2).coerceAtLeast(padTop)
+
+            fun rowCentreY(rowIndex: Float): Dp = blockTop + rowStep * (rowIndex + 0.5f)
+
+            // 1. Far-Right Artwork (3/4 visible) + Bold Song Title & Artist cleanly above it
+            val artSize = (stageW * 0.44f).coerceAtMost(stageH * 0.54f).coerceAtLeast(112.dp)
+            val travel = artTravel(rowWidth = stageW, startInset = 0.dp)
+            val rightZoneLeft = apexX + 12.dp
+            val titleZoneW = (stageW - rightZoneLeft - 10.dp).coerceAtLeast(100.dp)
+
+            // Bold coordinated Song Title + Artist right above the artwork
+            Column(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .offset(y = -(artSize / 2 + 34.dp))
+                    .padding(end = 10.dp)
+                    .width(titleZoneW)
+                    .zIndex(2f),
+                horizontalAlignment = Alignment.Start,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                PodiumText(
+                    text = p.item.title,
+                    style = type.nowPlayingTitle.copy(
+                        fontSize = 18.sp,
+                        lineHeight = 22.sp,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    ),
+                    color = colors.labelPrimary,
+                    maxLines = 2,
+                )
+                if (p.item.artistDisplay.isNotBlank() && p.item.artistDisplay != p.item.title) {
+                    PodiumText(
+                        text = p.item.artistDisplay,
+                        style = type.footnote,
+                        color = colors.labelSecondary,
+                        maxLines = 1,
+                    )
+                }
+            }
+
+            // Artwork sitting below the title, separated cleanly from the arch, ~3/4 visible
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .offset(x = artSize * 0.28f, y = 14.dp)
+                    .size(artSize)
+                    .zIndex(0.5f),
+                contentAlignment = Alignment.Center,
+            ) {
+                ArtworkStage(p, artSize, artSize, travel)
+            }
+
+            // 2. Mode 1 Curved Gradient + ")" Arch Line + Exact Main Menu Focus Lens & Blue Dot
+            Canvas(Modifier.fillMaxSize().zIndex(1f)) {
+                val steps = 48
+                if (modes.menuGradientEnabled) {
+                    val fillPath = Path()
+                    fillPath.moveTo(0f, 0f)
+                    for (i in 0..steps) {
+                        val y = stageH * (i / steps.toFloat())
+                        val x = arcX(y).toPx()
+                        fillPath.lineTo(x, y.toPx())
+                    }
+                    fillPath.lineTo(0f, size.height)
+                    fillPath.close()
+                    val gradColor = modes.menuGradientColor
+                    drawPath(
+                        path = fillPath,
+                        brush = Brush.horizontalGradient(
+                            colorStops = arrayOf(
+                                0.0f to Color.Transparent,
+                                0.25f to gradColor.copy(alpha = 0.08f),
+                                0.65f to gradColor.copy(alpha = 0.34f),
+                                1.0f to gradColor.copy(alpha = 0.70f),
+                            ),
+                            startX = 0f,
+                            endX = apexX.toPx().coerceAtLeast(1f),
+                        ),
+                    )
+                }
+
+                // Main ")" Arch stroke
+                val archPath = Path()
+                for (i in 0..steps) {
+                    val y = padTop + readable * (i / steps.toFloat())
+                    val x = arcX(y).toPx()
+                    if (i == 0) archPath.moveTo(x, y.toPx()) else archPath.lineTo(x, y.toPx())
+                }
+                val arcStrokeColor = colors.labelTertiary.copy(alpha = if (colors.isDark) 0.45f else 0.60f)
+                drawPath(archPath, arcStrokeColor, style = Stroke(width = 1.dp.toPx()))
+
+                // Exact FocusList drawLens() glass cadre + blue indicator dot riding on the arc
+                if (actions.isNotEmpty()) {
+                    val activeRowY = rowCentreY(focusPos.value)
+                    val dotX = arcX(activeRowY).toPx()
+                    val lensRight = dotX - (arcGap / 2).toPx()
+                    val lensLeft = (lensRight - rowWidth.toPx()).coerceAtLeast(4.dp.toPx())
+                    val lensH = rowStep.toPx()
+                    val lensTop = activeRowY.toPx() - lensH / 2f
+                    drawLens(
+                        style = colors.style,
+                        dark = colors.isDark,
+                        highlight = colors.highlight,
+                        labelPrimary = colors.labelPrimary,
+                        solid = false,
+                        tone = tone,
+                        left = lensLeft,
+                        right = lensRight,
+                        lensTop = lensTop,
+                        lensHeight = lensH,
+                        dotX = dotX,
+                    )
+                }
+            }
+
+            // 3. Far-Left Middle Smaller & Blurred Metadata tucked all the way to the left edge
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 2.dp)
+                    .width(58.dp)
+                    .graphicsLayer {
+                        scaleX = 0.62f
+                        scaleY = 0.62f
+                        transformOrigin = TransformOrigin(0f, 0.5f)
+                    }
+                    .distantClear()
+                    .zIndex(1.5f),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                StatusColumn(p, Modifier.fillMaxWidth())
+            }
+
+            // 4. Arch Column: Text-only Action items with chevron, identical to Main Menu rows
+            actions.forEachIndexed { idx, action ->
+                val (_, label, on) = actionLook(p, action)
+                val focused = idx == safeFocus
+                val unsupported = (action == Action.Shuffle && !p.snapshot.controls.shuffle) ||
+                    (action == Action.Repeat && !p.snapshot.controls.repeat)
+                val cy = rowCentreY(idx.toFloat())
+                val rightEdge = arcX(cy) - arcGap / 2
+                val leftEdge = (rightEdge - rowWidth).coerceAtLeast(6.dp)
+                val itemW = (rightEdge - leftEdge).coerceAtLeast(80.dp)
+                val textColor = when {
+                    unsupported -> colors.labelTertiary
+                    on == true && colors.style == DisplayStyle.TONAL -> tone.accent
+                    on == true && action == Action.Favorite && colors.style == DisplayStyle.GLASS -> colors.like
+                    on == true -> if (colors.style == DisplayStyle.GLASS) colors.highlightText else colors.labelPrimary
+                    focused -> colors.labelPrimary
+                    else -> colors.labelPrimary.copy(alpha = 0.85f)
+                }
+                Row(
+                    modifier = Modifier
+                        .offset(x = leftEdge, y = cy - rowStep / 2)
+                        .size(width = itemW, height = rowStep)
+                        .clip(ContinuousShape(14.dp))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            enabled = !unsupported,
+                            onClick = {
+                                p.touched()
+                                p.perform(action)
+                            },
+                        )
+                        .padding(horizontal = 10.dp)
+                        .zIndex(2f),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    PodiumText(
+                        text = label,
+                        style = if (focused) type.rowFocused else type.row,
+                        color = textColor,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Symbol(
+                        symbol = PodiumSymbol.ChevronRight,
+                        color = if (focused) colors.labelPrimary else colors.labelTertiary,
+                        size = 14.dp,
+                    )
+                }
+            }
+        }
+
+        // Bottom Progress / Time bar (in place of the old horizontal action pill bar)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.edge, vertical = Spacing.xs),
+        ) {
+            NowPlayingProgress(p)
+        }
+    }
+}
+
 /** The visualiser standing in for the transport, for the tests that check the nostalgic screen has one. */
 internal const val VisualiserTestTag = "nowPlayingVisualiser"
 
@@ -233,6 +492,7 @@ internal enum class ProgressBarStyle(val label: String) {
     RETRO("Retro LCD blocks"),
     DOTS("Dotted matrix"),
     TUNER("Radio tuner dial"),
+    VOLUME("Volume bar"),
 }
 
 /**
@@ -326,6 +586,15 @@ internal fun NowPlayingProgress(p: NowPlayingParts) {
                         emphasized = p.mode == WheelMode.Scrub,
                         onSeek = onSeek,
                     )
+                    ProgressBarStyle.VOLUME -> Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(32.dp)
+                            .then(if (!seekable) Modifier else Modifier.pointerSeek(onSeek)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        ProgressBar(position, running = playing, modifier = Modifier.fillMaxWidth())
+                    }
                 }
                 NowPlayingTimes(p)
             }

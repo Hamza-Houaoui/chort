@@ -237,6 +237,8 @@ fun <T> FocusList(
     BoxWithConstraints(modifier.clipToBounds()) {
         val g = PaperGeometry(maxWidth, maxHeight, contentPadding.calculateTopPadding(), contentPadding.calculateBottomPadding())
         val decor = LocalPaperDecor.current()
+        val modes = LocalPaperModes.current
+        val subMenuResolver = LocalSubMenuPreviewResolver.current
         val lenses = if (miniature) null else LocalPaperLenses.current
         val lensKey = LocalPaperKey.current
         // A miniature may centre any row: room above the first and below the last.
@@ -258,6 +260,14 @@ fun <T> FocusList(
                     lenses.recordFocusedItem(lensKey, focusedItemKey)
                 }
             }
+            val focusedLabel = if (lenses != null && lensKey != null) lenses.focusedLabelOf(lensKey) else null
+            val effectivePreview = run {
+                if (modes.subMenuBlurPreview && focusedLabel != null) {
+                    val sub = subMenuResolver(focusedLabel)
+                    if (!sub.isNullOrEmpty()) return@run MenuPreview.SubOptions(sub)
+                }
+                focusedItem?.let(preview) ?: MenuPreview.None
+            }
             Box(
                 Modifier
                     .offset(x = g.rightBoxX, y = g.boxTop)
@@ -265,7 +275,7 @@ fun <T> FocusList(
                     .then(decor),
             ) {
                 AnimatedContent(
-                    targetState = focusedItem?.let(preview) ?: MenuPreview.None,
+                    targetState = effectivePreview,
                     // CONTENT (D-65): the preview belongs to the focus — it arrives while the lens
                     // settles, and the one before gets out of the way rather than lingering.
                     transitionSpec = { fadeIn(motion.contentIn()) togetherWith fadeOut(motion.contentOut()) },
@@ -274,16 +284,64 @@ fun <T> FocusList(
             }
         }
 
-        // The arc, the lens and the indicator riding on the arc.
+        // The arc, optional Mode 1 curved gradient, optional Mode 3 left breadcrumb arch, the lens and the indicator riding on the arc.
+        val hasPeek = !miniature && LocalPaperPeek.current != null
         Canvas(Modifier.fillMaxSize()) {
-            val path = Path()
             val steps = 48
+            // Mode 1: Curved horizontal gradient fill bounded on the right by the menu arc (Screenshot 1)
+            if (!miniature && modes.menuGradientEnabled) {
+                val fillPath = Path()
+                fillPath.moveTo(0f, 0f)
+                for (i in 0..steps) {
+                    val y = g.height * (i / steps.toFloat())
+                    val x = g.arcX(y).toPx()
+                    fillPath.lineTo(x, y.toPx())
+                }
+                fillPath.lineTo(0f, size.height)
+                fillPath.close()
+                val gradColor = modes.menuGradientColor
+                drawPath(
+                    path = fillPath,
+                    brush = Brush.horizontalGradient(
+                        colorStops = arrayOf(
+                            0.0f to Color.Transparent,
+                            0.25f to gradColor.copy(alpha = 0.08f),
+                            0.65f to gradColor.copy(alpha = 0.34f),
+                            1.0f to gradColor.copy(alpha = 0.70f),
+                        ),
+                        startX = 0f,
+                        endX = g.apexX.toPx().coerceAtLeast(1f),
+                    ),
+                )
+            }
+
+            val path = Path()
             for (i in 0..steps) {
                 val y = g.padTop + g.readable * (i / steps.toFloat())
                 val x = g.arcX(y).toPx()
                 if (i == 0) path.moveTo(x, y.toPx()) else path.lineTo(x, y.toPx())
             }
-            drawPath(path, colors.labelTertiary.copy(alpha = if (colors.isDark) 0.45f else 0.6f), style = Stroke(width = 1.dp.toPx()))
+            val arcStrokeColor = colors.labelTertiary.copy(alpha = if (colors.isDark) 0.45f else 0.6f)
+            drawPath(path, arcStrokeColor, style = Stroke(width = 1.dp.toPx()))
+
+            // Mode 3: Clean half-circle breadcrumb arch from right in front of the left miniature's focused item
+            // curving smoothly along the left edge up to the top-left icon right before the tab title.
+            if (hasPeek && modes.breadcrumbArchEnabled) {
+                val startX = (g.leftBoxRight - 8.dp).toPx().coerceAtLeast(10.dp.toPx())
+                val startY = (g.centreY + 18.dp).toPx()
+                val endX = 50.dp.toPx()
+                val endY = 30.dp.toPx()
+                val ctrlX = (minOf(startX, endX) - 18.dp.toPx()).coerceAtLeast(4.dp.toPx())
+                val ctrlY = (startY + endY) * 0.5f
+                val archPath = Path().apply {
+                    moveTo(startX, startY)
+                    quadraticTo(ctrlX, ctrlY, endX, endY)
+                }
+                drawPath(archPath, arcStrokeColor, style = Stroke(width = 1.dp.toPx()))
+                val dotColor = if (colors.isTonal) tone.accent else colors.highlight
+                drawCircle(dotColor, radius = 3.2.dp.toPx(), center = Offset(startX, startY))
+                drawCircle(dotColor, radius = 3.2.dp.toPx(), center = Offset(endX, endY))
+            }
             val lens = lensRect(listState, state.focusedIndex, lensPosition.value) ?: return@Canvas
             // The lit row's own centre: what the moves along the paper and the indicator follow.
             val centre = lens.first + lens.second / 2f
@@ -341,7 +399,7 @@ fun <T> FocusList(
                         .offset(x = g.leftBoxX, y = g.boxTop)
                         .size(g.boxHeight)
                         .then(decor)
-                        .distant()
+                        .distantClear()
                         .feathered(
                             left = if (g.leftBoxX > 0.dp) PeekFeather else 0.dp,
                             right = PeekFeather,
@@ -411,7 +469,7 @@ private const val SpinGapNanos = 90_000_000L
  * band the row sits on, a step above the surfaces around it, with the album's accent on the
  * indicator. On the paper the indicator dot sits on the arc at [dotX].
  */
-private fun DrawScope.drawLens(
+fun DrawScope.drawLens(
     style: DisplayStyle,
     dark: Boolean,
     highlight: Color,

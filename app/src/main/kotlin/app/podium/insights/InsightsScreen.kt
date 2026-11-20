@@ -39,13 +39,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.podium.AppGraph
@@ -94,6 +95,45 @@ private data class LiveLibraryMetrics(
     val galleryFavoritesCount: Int,
 )
 
+private val AppleDestructiveRed = Color(0xFFFF3B30)
+
+private enum class InsightsLang { EN, AR, FR, TR, RU }
+
+private fun insightsLangOf(strings: app.podium.core.designsystem.l10n.AppStrings): InsightsLang = when (strings) {
+    is app.podium.core.designsystem.l10n.ArabicStrings -> InsightsLang.AR
+    is app.podium.core.designsystem.l10n.FrenchStrings -> InsightsLang.FR
+    is app.podium.core.designsystem.l10n.TurkishStrings -> InsightsLang.TR
+    is app.podium.core.designsystem.l10n.RussianStrings -> InsightsLang.RU
+    else -> InsightsLang.EN
+}
+
+private fun InsightsLang.t(en: String, ar: String, fr: String, tr: String, ru: String): String = when (this) {
+    InsightsLang.EN -> en
+    InsightsLang.AR -> ar
+    InsightsLang.FR -> fr
+    InsightsLang.TR -> tr
+    InsightsLang.RU -> ru
+}
+
+private fun InsightsPeriod.label(lang: InsightsLang): String = when (this) {
+    InsightsPeriod.TODAY -> lang.t("Today", "اليوم", "Auj.", "Bugün", "Сегодня")
+    InsightsPeriod.WEEK -> lang.t("Week", "الأسبوع", "Sem.", "Hafta", "Неделя")
+    InsightsPeriod.MONTH -> lang.t("Month", "الشهر", "Mois", "Ay", "Месяц")
+    InsightsPeriod.ALL_TIME -> lang.t("All", "الكل", "Tout", "Tümü", "Всё")
+}
+
+private fun InsightsCategory.title(lang: InsightsLang): String = when (this) {
+    InsightsCategory.MUSIC -> lang.t("Music", "الموسيقى", "Musique", "Müzik", "Музыка")
+    InsightsCategory.YT_MUSIC -> lang.t("YT Music", "YT Music", "YT Music", "YT Music", "YT Music")
+    InsightsCategory.YOUTUBE -> "YouTube"
+    InsightsCategory.SOUNDCLOUD -> "SoundCloud"
+    InsightsCategory.RADIO -> lang.t("Radio", "الراديو", "Radio", "Radyo", "Радио")
+    InsightsCategory.PODCASTS -> lang.t("Podcasts", "البودكاست", "Podcasts", "Podcastler", "Подкасты")
+    InsightsCategory.QURAN -> lang.t("Quran", "القرآن", "Coran", "Kur'an", "Коран")
+    InsightsCategory.BOOKS -> lang.t("Books", "الكتب", "Livres", "Kitaplar", "Книги")
+    InsightsCategory.GALLERY -> lang.t("Gallery", "المعرض", "Galerie", "Galeri", "Галерея")
+}
+
 @Composable
 fun InsightsScreen(
     graph: AppGraph,
@@ -103,7 +143,7 @@ fun InsightsScreen(
     val type = PodiumTheme.type
     val motion = PodiumTheme.motion
     val strings = LocalAppStrings.current
-    val isAr = strings.settings == "الإعدادات"
+    val lang = insightsLangOf(strings)
     val haptics = rememberPodiumHaptics()
     val scope = rememberCoroutineScope()
 
@@ -260,46 +300,70 @@ fun InsightsScreen(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // Top Period Selector Bar + Reset button
+            // Apple-style iOS Segmented Control + Minimal Reset Ghost Button
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                for (p in InsightsPeriod.entries) {
-                    val selected = p == period
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(ContinuousShape(10.dp))
-                            .background(if (selected) colors.highlight else colors.canvasRaised)
-                            .then(if (selected) Modifier else Modifier.border(1.dp, colors.separator, ContinuousShape(10.dp)))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = {
-                                    period = p
-                                    haptics.press()
-                                },
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(ContinuousShape(10.dp))
+                        .background(colors.labelPrimary.copy(alpha = if (colors.isDark) 0.10f else 0.06f))
+                        .padding(2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    for (p in InsightsPeriod.entries) {
+                        val selected = p == period
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(ContinuousShape(8.dp))
+                                .background(
+                                    if (selected) colors.canvasRaised else Color.Transparent,
+                                )
+                                .then(
+                                    if (selected) {
+                                        Modifier.border(
+                                            0.5.dp,
+                                            colors.separator.copy(alpha = 0.45f),
+                                            ContinuousShape(8.dp),
+                                        )
+                                    } else {
+                                        Modifier
+                                    },
+                                )
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = {
+                                        period = p
+                                        haptics.press()
+                                    },
+                                )
+                                .padding(vertical = 5.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            PodiumText(
+                                text = p.label(lang),
+                                style = type.footnote.copy(
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                ),
+                                color = if (selected) colors.labelPrimary else colors.labelSecondary,
+                                textAlign = TextAlign.Center,
                             )
-                            .padding(vertical = 6.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        PodiumText(
-                            text = if (isAr) p.labelAr else p.labelEn,
-                            style = type.footnote,
-                            color = if (selected) colors.onHighlight else colors.labelSecondary,
-                            textAlign = TextAlign.Center,
-                        )
+                        }
                     }
                 }
+
                 Box(
                     modifier = Modifier
-                        .clip(ContinuousShape(10.dp))
-                        .background(colors.canvasRaised)
-                        .border(1.dp, colors.separator, ContinuousShape(10.dp))
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(colors.labelPrimary.copy(alpha = if (colors.isDark) 0.10f else 0.06f))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
@@ -307,8 +371,7 @@ fun InsightsScreen(
                                 showResetConfirm = true
                                 haptics.press()
                             },
-                        )
-                        .padding(horizontal = 9.dp, vertical = 6.dp),
+                        ),
                     contentAlignment = Alignment.Center,
                 ) {
                     PodiumText(
@@ -319,15 +382,15 @@ fun InsightsScreen(
                 }
             }
 
-            // Large 3D Cover Flow Stage for Report Cards
+            // Large 3D Cover Flow Stage for Minimal Editorial Cards
             BoxWithConstraints(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
             ) {
-                val cardW = (maxWidth * 0.86f).coerceAtLeast(220.dp)
-                val cardH = (maxHeight * 0.94f).coerceAtLeast(220.dp)
-                val spacingDp = cardW.value * 0.84f
+                val cardW = (maxWidth * 0.88f).coerceAtLeast(220.dp)
+                val cardH = (maxHeight * 0.95f).coerceAtLeast(220.dp)
+                val spacingDp = cardW.value * 0.86f
                 val pxPerDp = LocalDensity.current.density
                 val middle by remember {
                     derivedStateOf { position.value.roundToInt().coerceIn(0, pages.lastIndex) }
@@ -368,14 +431,14 @@ fun InsightsScreen(
                                 .graphicsLayer {
                                     val d = i - position.value
                                     val near = d.coerceIn(-1f, 1f)
-                                    val x = if (abs(d) <= 1f) d * spacingDp else sign(d) * (spacingDp + (abs(d) - 1f) * cardW.value * 0.25f)
+                                    val x = if (abs(d) <= 1f) d * spacingDp else sign(d) * (spacingDp + (abs(d) - 1f) * cardW.value * 0.24f)
                                     translationX = x * density
-                                    rotationY = -near * 24f
-                                    cameraDistance = 16f * density
-                                    val s = 1f - 0.10f * abs(near)
+                                    rotationY = -near * 18f
+                                    cameraDistance = 18f * density
+                                    val s = 1f - 0.08f * abs(near)
                                     scaleX = s
                                     scaleY = s
-                                    alpha = (1f - 0.42f * abs(near)).coerceIn(0.25f, 1f)
+                                    alpha = (1f - 0.45f * abs(near)).coerceIn(0.22f, 1f)
                                 }
                                 .pointerInput(i, isCenter) {
                                     detectTapGestures(
@@ -397,7 +460,7 @@ fun InsightsScreen(
                                     overall = overall,
                                     live = live,
                                     period = period,
-                                    isAr = isAr,
+                                    lang = lang,
                                     isFocused = isCenter,
                                 )
                                 is InsightsCardPage.Category -> {
@@ -408,7 +471,7 @@ fun InsightsScreen(
                                         totalOverallMs = overall.totalDurationMs,
                                         live = live,
                                         period = period,
-                                        isAr = isAr,
+                                        lang = lang,
                                         isFocused = isCenter,
                                     )
                                 }
@@ -418,10 +481,10 @@ fun InsightsScreen(
                 }
             }
 
-            // Bottom Page Dots & Label
+            // Quiet Apple Pagination Dots & Caption
             val activeTitle = when (val p = pages.getOrNull(focusedIndex)) {
-                is InsightsCardPage.Overview -> if (isAr) "الكل (ملخّص)" else "Overview (All)"
-                is InsightsCardPage.Category -> if (isAr) p.category.titleAr else p.category.titleEn
+                is InsightsCardPage.Overview -> lang.t("Summary", "الملخّص", "Résumé", "Özet", "Сводка")
+                is InsightsCardPage.Category -> p.category.title(lang)
                 null -> ""
             }
             Column(
@@ -429,27 +492,21 @@ fun InsightsScreen(
                     .fillMaxWidth()
                     .padding(top = 4.dp, bottom = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(5.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(5.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    pages.forEachIndexed { idx, p ->
+                    pages.forEachIndexed { idx, _ ->
                         val active = idx == focusedIndex
-                        val dotColor = if (active) {
-                            when (p) {
-                                InsightsCardPage.Overview -> colors.highlight
-                                is InsightsCardPage.Category -> Color(p.category.accentHex)
-                            }
-                        } else {
-                            colors.labelTertiary.copy(alpha = 0.45f)
-                        }
                         Box(
                             modifier = Modifier
-                                .size(width = if (active) 16.dp else 6.dp, height = 6.dp)
+                                .size(width = if (active) 14.dp else 5.dp, height = 5.dp)
                                 .clip(CircleShape)
-                                .background(dotColor)
+                                .background(
+                                    if (active) colors.labelPrimary else colors.labelTertiary.copy(alpha = 0.35f),
+                                )
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null,
@@ -462,20 +519,20 @@ fun InsightsScreen(
                     }
                 }
                 PodiumText(
-                    text = "${focusedIndex + 1} / ${pages.size}  •  $activeTitle",
+                    text = activeTitle,
                     style = type.footnote,
-                    color = colors.labelSecondary,
+                    color = colors.labelTertiary,
                     textAlign = TextAlign.Center,
                 )
             }
         }
 
-        // Reset Confirmation Dialog (Themed)
+        // Apple-style Minimal Reset Alert
         if (showResetConfirm) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.55f))
+                    .background(Color.Black.copy(alpha = 0.45f))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
@@ -485,45 +542,68 @@ fun InsightsScreen(
             ) {
                 Column(
                     modifier = Modifier
-                        .padding(horizontal = 24.dp)
+                        .padding(horizontal = 32.dp)
                         .fillMaxWidth()
-                        .background(colors.canvasRaised, ContinuousShape(18.dp))
-                        .border(1.dp, colors.separator, ContinuousShape(18.dp))
-                        .clickable(enabled = false) {}
-                        .padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                        .clip(ContinuousShape(20.dp))
+                        .background(colors.canvasRaised)
+                        .border(0.5.dp, colors.separator.copy(alpha = 0.5f), ContinuousShape(20.dp))
+                        .clickable(enabled = false) {},
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    PodiumText(
-                        text = if (isAr) "تصفير الإحصائيات؟" else "Reset Insights?",
-                        style = type.rowFocused,
-                        color = colors.labelPrimary,
-                    )
-                    PodiumText(
-                        text = if (isAr) "سيتم مسح سجلّ أوقات الاستماع والقراءة والمشاهدة المحفوظة." else "This clears all tracked listening, reading, and viewing time history.",
-                        style = type.footnote,
-                        color = colors.labelSecondary,
-                        maxLines = 3,
-                    )
+                    Column(
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        PodiumText(
+                            text = lang.t("Reset Insights", "تصفير الإحصائيات", "Réinitialiser", "İstatistikleri Sıfırla", "Сбросить статистику"),
+                            style = type.rowFocused,
+                            color = colors.labelPrimary,
+                            textAlign = TextAlign.Center,
+                        )
+                        PodiumText(
+                            text = lang.t(
+                                "All tracked listening, reading, and viewing history will be cleared.",
+                                "سيتم مسح سجلّ أوقات الاستماع والقراءة والمشاهدة.",
+                                "Tout l'historique d'écoute, de lecture et de visionnage sera effacé.",
+                                "Tüm dinleme, okuma ve izleme geçmişi silinecek.",
+                                "Вся история прослушивания, чтения и просмотра будет очищена.",
+                            ),
+                            style = type.footnote,
+                            color = colors.labelSecondary,
+                            textAlign = TextAlign.Center,
+                            maxLines = 3,
+                        )
+                    }
+                    AppleHairline()
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp),
                     ) {
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .height(42.dp)
-                                .background(colors.canvas, ContinuousShape(12.dp))
-                                .border(1.dp, colors.separator, ContinuousShape(12.dp))
+                                .fillMaxHeight()
                                 .clickable { showResetConfirm = false },
                             contentAlignment = Alignment.Center,
                         ) {
-                            PodiumText(if (isAr) "إلغاء" else "Cancel", type.row, colors.labelPrimary)
+                            PodiumText(
+                                text = lang.t("Cancel", "إلغاء", "Annuler", "İptal", "Отмена"),
+                                style = type.row,
+                                color = colors.labelPrimary,
+                            )
                         }
                         Box(
                             modifier = Modifier
+                                .width(0.5.dp)
+                                .fillMaxHeight()
+                                .background(colors.separator.copy(alpha = 0.45f)),
+                        )
+                        Box(
+                            modifier = Modifier
                                 .weight(1f)
-                                .height(42.dp)
-                                .background(colors.highlight, ContinuousShape(12.dp))
+                                .fillMaxHeight()
                                 .clickable {
                                     graph.insightsRepository.resetAll()
                                     showResetConfirm = false
@@ -531,7 +611,11 @@ fun InsightsScreen(
                                 },
                             contentAlignment = Alignment.Center,
                         ) {
-                            PodiumText(if (isAr) "تصفير" else "Reset", type.rowFocused, colors.onHighlight)
+                            PodiumText(
+                                text = lang.t("Reset", "تصفير", "Effacer", "Sıfırla", "Сбросить"),
+                                style = type.rowFocused,
+                                color = AppleDestructiveRed,
+                            )
                         }
                     }
                 }
@@ -545,119 +629,85 @@ private fun OverviewReportCard(
     overall: OverallStats,
     live: LiveLibraryMetrics,
     period: InsightsPeriod,
-    isAr: Boolean,
+    lang: InsightsLang,
     isFocused: Boolean,
 ) {
     val colors = PodiumTheme.colors
     val type = PodiumTheme.type
-    val accent = colors.highlight
+    val heroStyle = type.title.copy(
+        fontSize = 28.sp,
+        lineHeight = 32.sp,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = (-0.6).sp,
+    )
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(colors.canvasRaised, ContinuousShape(20.dp))
+            .clip(ContinuousShape(24.dp))
+            .background(colors.canvasRaised)
             .border(
-                width = if (isFocused) 1.5.dp else 1.dp,
-                color = if (isFocused) accent.copy(alpha = 0.65f) else colors.separator,
-                shape = ContinuousShape(20.dp),
+                width = 0.5.dp,
+                color = colors.separator.copy(alpha = if (isFocused) 0.55f else 0.30f),
+                shape = ContinuousShape(24.dp),
             )
-            .clip(ContinuousShape(20.dp))
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = 18.dp, vertical = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        // Card Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .clip(CircleShape)
-                        .background(accent),
-                )
-                PodiumText(
-                    text = if (isAr) "الملخّص الشامل" else "All Activity Overview",
-                    style = type.rowFocused,
-                    color = colors.labelPrimary,
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(accent.copy(alpha = 0.16f))
-                    .padding(horizontal = 9.dp, vertical = 3.dp),
-            ) {
-                PodiumText(
-                    text = if (isAr) period.labelAr else period.labelEn,
-                    style = type.footnote,
-                    color = accent,
-                )
-            }
-        }
-
-        // Hero Stats Row
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            InsightMetricTile(
-                value = formatInsightsDuration(overall.totalDurationMs),
-                label = if (isAr) "الوقت الإجمالي" else "Total Time",
-                accent = accent,
-                modifier = Modifier.weight(1.2f),
-            )
-            InsightMetricTile(
-                value = "${overall.totalSessions}",
-                label = if (isAr) "العمليات" else "Sessions",
-                accent = null,
-                modifier = Modifier.weight(0.9f),
-            )
-            InsightMetricTile(
-                value = "${overall.currentStreakDays}d",
-                label = if (isAr) "سلسلة الأيام" else "Streak",
-                accent = null,
-                modifier = Modifier.weight(0.9f),
-            )
-        }
-
-        // Category Breakdown Stacked Bar Chart
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        // Editorial Hero Header (Apple Screen Time style)
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 PodiumText(
-                    text = if (isAr) "توزيع الوقت حسب القسم" else "Activity Breakdown",
-                    style = type.caption,
+                    text = lang.t("Summary", "الملخّص", "Résumé", "Özet", "Сводка"),
+                    style = type.caption.copy(fontWeight = FontWeight.Medium),
                     color = colors.labelSecondary,
                 )
-                overall.topCategory?.let { topCat ->
-                    PodiumText(
-                        text = (if (isAr) "الأكثر: ${topCat.titleAr}" else "Top: ${topCat.titleEn}"),
-                        style = type.footnote,
-                        color = Color(topCat.accentHex),
-                    )
-                }
+                PodiumText(
+                    text = period.label(lang),
+                    style = type.footnote,
+                    color = colors.labelTertiary,
+                )
             }
+            Spacer(Modifier.height(2.dp))
+            PodiumText(
+                text = formatInsightsDuration(overall.totalDurationMs),
+                style = heroStyle,
+                color = colors.labelPrimary,
+                maxLines = 1,
+            )
+            PodiumText(
+                text = lang.t(
+                    "${overall.totalSessions} sessions  •  ${overall.currentStreakDays}d streak",
+                    "${overall.totalSessions} جلسة  •  سلسلة ${overall.currentStreakDays} يوم",
+                    "${overall.totalSessions} sessions  •  série ${overall.currentStreakDays}j",
+                    "${overall.totalSessions} oturum  •  ${overall.currentStreakDays}g seri",
+                    "${overall.totalSessions} сеансов  •  серия ${overall.currentStreakDays}д",
+                ),
+                style = type.footnote,
+                color = colors.labelSecondary,
+            )
+        }
 
-            // Stacked proportional bar
-            val activeCats = overall.byCategory.filter { it.durationMs > 0L }
+        // Apple Storage / Screen Time Proportional Bar + Breakdown
+        val activeCats = overall.byCategory.filter { it.durationMs > 0L }
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(10.dp)
+                    .height(7.dp)
                     .clip(RoundedCornerShape(50))
-                    .background(colors.separator.copy(alpha = 0.35f)),
+                    .background(colors.labelPrimary.copy(alpha = 0.08f)),
             ) {
                 if (activeCats.isNotEmpty() && overall.totalDurationMs > 0L) {
-                    Row(modifier = Modifier.fillMaxSize()) {
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
                         for (c in activeCats) {
                             val weight = (c.durationMs.toFloat() / overall.totalDurationMs.toFloat()).coerceAtLeast(0.03f)
                             Box(
@@ -671,15 +721,13 @@ private fun OverviewReportCard(
                 }
             }
 
-            // Top 4 active categories with mini progress bars
             val shown = activeCats.take(4)
             if (shown.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     for (cs in shown) {
-                        val frac = if (overall.totalDurationMs > 0L) {
-                            (cs.durationMs.toFloat() / overall.totalDurationMs.toFloat()).coerceIn(0f, 1f)
-                        } else 0f
-                        val pct = (frac * 100f).roundToInt()
+                        val pct = if (overall.totalDurationMs > 0L) {
+                            ((cs.durationMs.toFloat() / overall.totalDurationMs.toFloat()) * 100f).roundToInt()
+                        } else 0
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
@@ -692,22 +740,33 @@ private fun OverviewReportCard(
                                     .background(Color(cs.category.accentHex)),
                             )
                             PodiumText(
-                                text = if (isAr) cs.category.titleAr else cs.category.titleEn,
+                                text = cs.category.title(lang),
                                 style = type.footnote,
                                 color = colors.labelPrimary,
                                 modifier = Modifier.weight(1f),
                             )
                             PodiumText(
-                                text = "${formatInsightsDuration(cs.durationMs)} • $pct%",
+                                text = formatInsightsDuration(cs.durationMs),
+                                style = type.footnote.copy(fontWeight = FontWeight.Medium),
+                                color = colors.labelPrimary,
+                            )
+                            PodiumText(
+                                text = "$pct%",
                                 style = type.footnote,
-                                color = colors.labelSecondary,
+                                color = colors.labelTertiary,
                             )
                         }
                     }
                 }
             } else {
                 PodiumText(
-                    text = if (isAr) "ابدأ بالاستماع أو القراءة أو المشاهدة لتظهر الإحصائيات الحية هنا." else "Listen, read, or watch across any tab to see your live breakdown here.",
+                    text = lang.t(
+                        "Listen, read, or watch to see your breakdown.",
+                        "ابدأ بالاستماع أو القراءة أو المشاهدة لتظهر الإحصائيات هنا.",
+                        "Écoutez, lisez ou regardez pour voir vos statistiques.",
+                        "Dağılımı görmek için dinleyin, okuyun veya izleyin.",
+                        "Слушайте, читайте или смотрите, чтобы увидеть статистику.",
+                    ),
                     style = type.footnote,
                     color = colors.labelTertiary,
                     maxLines = 2,
@@ -715,77 +774,51 @@ private fun OverviewReportCard(
             }
         }
 
-        // Combined Library Snapshot (Existing App Data)
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        AppleHairline()
+
+        // Clean Typographic Library Snapshot (No Nested Boxes)
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             PodiumText(
-                text = if (isAr) "محتوى تطبيقك الكل" else "Your Library Snapshot",
-                style = type.caption,
+                text = lang.t("Library", "المكتبة", "Bibliothèque", "Kütüphane", "Медиатека"),
+                style = type.caption.copy(fontWeight = FontWeight.Medium),
                 color = colors.labelSecondary,
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                InsightMetricTile(
-                    value = "${live.musicSongsCount}",
-                    label = if (isAr) "أغاني" else "Songs",
-                    accent = null,
-                    modifier = Modifier.weight(1f),
-                )
-                InsightMetricTile(
-                    value = "${live.booksTotalCount}",
-                    label = if (isAr) "كتب" else "Books",
-                    accent = null,
-                    modifier = Modifier.weight(1f),
-                )
-                InsightMetricTile(
-                    value = "${live.galleryPhotosCount + live.galleryVideosCount}",
-                    label = if (isAr) "صور/فيديو" else "Media",
-                    accent = null,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                InsightMetricTile(
-                    value = "${live.downloadsCount}",
-                    label = if (isAr) "محمّلة" else "Downloads",
-                    accent = null,
-                    modifier = Modifier.weight(1f),
-                )
-                InsightMetricTile(
-                    value = "${live.radioFavoritesCount}",
-                    label = if (isAr) "راديو ★" else "Radio ★",
-                    accent = null,
-                    modifier = Modifier.weight(1f),
-                )
-                InsightMetricTile(
-                    value = "${live.quranBookmarksCount}",
-                    label = if (isAr) "علامات قرآن" else "Quran ★",
-                    accent = null,
-                    modifier = Modifier.weight(1f),
-                )
-            }
+            AppleStatRow(
+                items = listOf(
+                    "${live.musicSongsCount}" to lang.t("Songs", "أغاني", "Titres", "Şarkılar", "Песни"),
+                    "${live.booksTotalCount}" to lang.t("Books", "كتب", "Livres", "Kitaplar", "Книги"),
+                    "${live.galleryPhotosCount + live.galleryVideosCount}" to lang.t("Media", "الوسائط", "Médias", "Medya", "Медиа"),
+                ),
+            )
+            AppleStatRow(
+                items = listOf(
+                    "${live.downloadsCount}" to lang.t("Downloads", "محمّلة", "Téléch.", "İndirilen", "Загрузки"),
+                    "${live.radioFavoritesCount}" to lang.t("Radio", "راديو", "Radio", "Radyo", "Радио"),
+                    "${live.quranBookmarksCount}" to lang.t("Quran", "القرآن", "Coran", "Kur'an", "Коран"),
+                ),
+            )
         }
 
-        // Top Overall Activity
+        // Top Overall Activity (Grouped iOS List with Hairlines)
         if (overall.topOverallItems.isNotEmpty()) {
-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            AppleHairline()
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 PodiumText(
-                    text = if (isAr) "الأكثر نشاطاً" else "Most Active Items",
-                    style = type.caption,
+                    text = lang.t("Most Active", "الأكثر نشاطاً", "Les plus actifs", "En aktif", "Самые активные"),
+                    style = type.caption.copy(fontWeight = FontWeight.Medium),
                     color = colors.labelSecondary,
                 )
-                overall.topOverallItems.take(3).forEachIndexed { idx, (cat, item) ->
-                    InsightTopItemRow(
-                        rank = idx + 1,
-                        title = item.title,
-                        subtitle = if (isAr) cat.titleAr else cat.titleEn,
-                        trailing = if (item.durationMs > 0L) formatInsightsDuration(item.durationMs) else "${item.count}×",
-                        accent = Color(cat.accentHex),
-                    )
+                val items = overall.topOverallItems.take(3)
+                Column {
+                    items.forEachIndexed { idx, (cat, item) ->
+                        AppleListRow(
+                            rank = idx + 1,
+                            title = item.title,
+                            subtitle = cat.title(lang),
+                            trailing = if (item.durationMs > 0L) formatInsightsDuration(item.durationMs) else "${item.count}×",
+                        )
+                        if (idx < items.lastIndex) AppleHairline(indentStart = 20.dp)
+                    }
                 }
             }
         }
@@ -798,7 +831,7 @@ private fun CategoryReportCard(
     totalOverallMs: Long,
     live: LiveLibraryMetrics,
     period: InsightsPeriod,
-    isAr: Boolean,
+    lang: InsightsLang,
     isFocused: Boolean,
 ) {
     val colors = PodiumTheme.colors
@@ -807,191 +840,172 @@ private fun CategoryReportCard(
     val accent = Color(cat.accentHex)
     val shareFrac = if (totalOverallMs > 0L) (stats.durationMs.toFloat() / totalOverallMs.toFloat()).coerceIn(0f, 1f) else 0f
     val sharePct = (shareFrac * 100f).roundToInt()
+    val heroStyle = type.title.copy(
+        fontSize = 28.sp,
+        lineHeight = 32.sp,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = (-0.6).sp,
+    )
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(colors.canvasRaised, ContinuousShape(20.dp))
+            .clip(ContinuousShape(24.dp))
+            .background(colors.canvasRaised)
             .border(
-                width = if (isFocused) 1.5.dp else 1.dp,
-                color = if (isFocused) accent.copy(alpha = 0.72f) else colors.separator,
-                shape = ContinuousShape(20.dp),
+                width = 0.5.dp,
+                color = colors.separator.copy(alpha = if (isFocused) 0.55f else 0.30f),
+                shape = ContinuousShape(24.dp),
             )
-            .clip(ContinuousShape(20.dp))
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = 18.dp, vertical = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        // Category Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
+        // Editorial Category Hero Header
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(11.dp)
-                        .clip(CircleShape)
-                        .background(accent),
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(accent),
+                    )
+                    PodiumText(
+                        text = cat.title(lang),
+                        style = type.caption.copy(fontWeight = FontWeight.Medium),
+                        color = colors.labelSecondary,
+                    )
+                }
                 PodiumText(
-                    text = if (isAr) cat.titleAr else cat.titleEn,
-                    style = type.rowFocused,
-                    color = colors.labelPrimary,
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(accent.copy(alpha = 0.16f))
-                    .padding(horizontal = 9.dp, vertical = 3.dp),
-            ) {
-                PodiumText(
-                    text = "$sharePct% ${if (isAr) "من وقتك" else "of time"}",
-                    style = type.footnote,
+                    text = "$sharePct%",
+                    style = type.footnote.copy(fontWeight = FontWeight.Medium),
                     color = accent,
                 )
             }
-        }
-
-        // Time + Sessions Row
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            InsightMetricTile(
-                value = formatInsightsDuration(stats.durationMs),
-                label = when (cat) {
-                    InsightsCategory.YOUTUBE -> if (isAr) "وقت المشاهدة" else "Watch Time"
-                    InsightsCategory.BOOKS -> if (isAr) "وقت القراءة" else "Reading Time"
-                    InsightsCategory.GALLERY -> if (isAr) "وقت التصفّح" else "Viewing Time"
-                    else -> if (isAr) "وقت الاستماع" else "Listening Time"
-                },
-                accent = accent,
-                modifier = Modifier.weight(1.2f),
+            Spacer(Modifier.height(2.dp))
+            PodiumText(
+                text = formatInsightsDuration(stats.durationMs),
+                style = heroStyle,
+                color = colors.labelPrimary,
+                maxLines = 1,
             )
-            InsightMetricTile(
-                value = "${stats.sessionsCount}",
-                label = when (cat) {
-                    InsightsCategory.YOUTUBE -> if (isAr) "فيديوهات" else "Videos"
-                    InsightsCategory.BOOKS -> if (isAr) "جلسات قراءة" else "Sessions"
-                    InsightsCategory.GALLERY -> if (isAr) "معاينات" else "Views"
-                    InsightsCategory.QURAN -> if (isAr) "سور" else "Surahs"
-                    InsightsCategory.RADIO -> if (isAr) "محطّات" else "Tunes"
-                    else -> if (isAr) "تشغيل" else "Plays"
-                },
-                accent = null,
-                modifier = Modifier.weight(0.8f),
+            val sessionsLabel = when (cat) {
+                InsightsCategory.YOUTUBE -> lang.t("videos", "فيديو", "vidéos", "video", "видео")
+                InsightsCategory.BOOKS -> lang.t("reading sessions", "جلسة قراءة", "sessions", "okuma", "сеансов")
+                InsightsCategory.GALLERY -> lang.t("views", "معاينة", "vues", "görüntüleme", "просмотров")
+                InsightsCategory.QURAN -> lang.t("surahs", "سورة", "sourates", "sure", "сур")
+                InsightsCategory.RADIO -> lang.t("tunes", "محطّة", "écoutes", "istasyon", "станций")
+                else -> lang.t("plays", "تشغيل", "lectures", "çalma", "воспроизв.")
+            }
+            PodiumText(
+                text = "${stats.sessionsCount} $sessionsLabel  •  ${period.label(lang)}",
+                style = type.footnote,
+                color = colors.labelSecondary,
             )
         }
 
-        // Visual Share Progress Bar
+        // Minimal Slim Progress Bar
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(7.dp)
+                .height(5.dp)
                 .clip(RoundedCornerShape(50))
-                .background(colors.separator.copy(alpha = 0.35f)),
+                .background(colors.labelPrimary.copy(alpha = 0.08f)),
         ) {
             if (shareFrac > 0f) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(shareFrac.coerceAtLeast(0.04f))
+                        .fillMaxWidth(shareFrac.coerceAtLeast(0.03f))
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(50))
-                        .background(
-                            Brush.horizontalGradient(
-                                listOf(accent.copy(alpha = 0.75f), accent),
-                            ),
-                        ),
+                        .background(accent),
                 )
             }
         }
 
-        // Category-specific Live Metrics from App Repositories
+        AppleHairline()
+
+        // Category-specific Live Metrics (Clean Typographic Columns)
         val liveTiles: List<Pair<String, String>> = when (cat) {
             InsightsCategory.MUSIC -> listOf(
-                "${live.musicSongsCount}" to (if (isAr) "أغاني المكتبة" else "Library Songs"),
-                "${live.downloadsCount}" to (if (isAr) "محمّلة Offline" else "Downloaded"),
+                "${live.musicSongsCount}" to lang.t("Library", "أغاني المكتبة", "Bibliothèque", "Kütüphane", "Медиатека"),
+                "${live.downloadsCount}" to lang.t("Downloaded", "محمّلة", "Téléchargés", "İndirilen", "Скачано"),
             )
             InsightsCategory.YT_MUSIC -> listOf(
-                "${live.ytMusicLikedCount}" to (if (isAr) "الإعجابات" else "Liked Songs"),
-                "${live.ytMusicRecent.size}" to (if (isAr) "الأخيرة" else "Recent"),
+                "${live.ytMusicLikedCount}" to lang.t("Liked", "الإعجابات", "Aimés", "Beğenilen", "Понравилось"),
+                "${live.ytMusicRecent.size}" to lang.t("Recent", "الأخيرة", "Récents", "Son", "Недавние"),
             )
             InsightsCategory.YOUTUBE -> listOf(
-                (if (isAr) period.labelAr else period.labelEn) to (if (isAr) "الفترة" else "Period"),
-                "${stats.topItems.size}" to (if (isAr) "فيديوهات مسجّلة" else "Tracked Videos"),
+                "${stats.topItems.size}" to lang.t("Tracked", "فيديوهات مسجّلة", "Suivis", "Kayıtlı", "Записано"),
+                "${stats.sessionsCount}" to lang.t("Watches", "مشاهدات", "Vues", "İzleme", "Просмотры"),
             )
             InsightsCategory.SOUNDCLOUD -> listOf(
-                "${live.soundCloudLikesCount}" to (if (isAr) "الإعجابات" else "Likes"),
-                "${live.soundCloudPlaylistsCount}" to (if (isAr) "قوائم التشغيل" else "Playlists"),
+                "${live.soundCloudLikesCount}" to lang.t("Likes", "الإعجابات", "J'aime", "Beğeniler", "Лайки"),
+                "${live.soundCloudPlaylistsCount}" to lang.t("Playlists", "قوائم التشغيل", "Playlists", "Listeler", "Плейлисты"),
             )
             InsightsCategory.RADIO -> listOf(
-                "${live.radioFavoritesCount}" to (if (isAr) "المفضّلة" else "Favorites"),
-                "${live.radioRecents.size}" to (if (isAr) "الأخيرة" else "Recent"),
+                "${live.radioFavoritesCount}" to lang.t("Favorites", "المفضّلة", "Favoris", "Favoriler", "Избранное"),
+                "${live.radioRecents.size}" to lang.t("Recent", "الأخيرة", "Récents", "Son", "Недавние"),
             )
             InsightsCategory.PODCASTS -> listOf(
-                "${live.podcastSubsCount}" to (if (isAr) "الاشتراكات" else "Subscribed"),
-                "${live.podcastRecents.size}" to (if (isAr) "الحلقات الأخيرة" else "Recent Episodes"),
+                "${live.podcastSubsCount}" to lang.t("Subscribed", "الاشتراكات", "Abonnements", "Abonelik", "Подписки"),
+                "${live.podcastRecents.size}" to lang.t("Episodes", "الحلقات", "Épisodes", "Bölümler", "Выпуски"),
             )
             InsightsCategory.QURAN -> listOf(
-                "${live.quranBookmarksCount}" to (if (isAr) "العلامات" else "Bookmarks"),
-                (live.quranLastReadTitle ?: "—") to (if (isAr) "آخر قراءة" else "Last Read"),
+                "${live.quranBookmarksCount}" to lang.t("Bookmarks", "العلامات", "Signets", "Yer imleri", "Закладки"),
+                (live.quranLastReadTitle ?: "—") to lang.t("Last Read", "آخر قراءة", "Dernière lecture", "Son okunan", "Последнее"),
             )
             InsightsCategory.BOOKS -> listOf(
-                "${live.booksTotalCount}" to (if (isAr) "الكتب" else "Books"),
-                "${live.booksInProgressCount}" to (if (isAr) "قيد القراءة" else "In Progress"),
-                "${live.booksFavoritesCount}" to (if (isAr) "المفضّلة" else "Favorites"),
+                "${live.booksTotalCount}" to lang.t("Books", "الكتب", "Livres", "Kitaplar", "Книги"),
+                "${live.booksInProgressCount}" to lang.t("Reading", "قيد القراءة", "En cours", "Okunuyor", "Читаю"),
+                "${live.booksFavoritesCount}" to lang.t("Favorites", "المفضّلة", "Favoris", "Favoriler", "Избранное"),
             )
             InsightsCategory.GALLERY -> listOf(
-                "${live.galleryPhotosCount}" to (if (isAr) "صور" else "Photos"),
-                "${live.galleryVideosCount}" to (if (isAr) "فيديوهات" else "Videos"),
-                "${live.galleryFavoritesCount}" to (if (isAr) "المفضّلة" else "Favorites"),
+                "${live.galleryPhotosCount}" to lang.t("Photos", "صور", "Photos", "Fotoğraf", "Фото"),
+                "${live.galleryVideosCount}" to lang.t("Videos", "فيديوهات", "Vidéos", "Video", "Видео"),
+                "${live.galleryFavoritesCount}" to lang.t("Favorites", "المفضّلة", "Favoris", "Favoriler", "Избранное"),
             )
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            for ((v, lbl) in liveTiles) {
-                InsightMetricTile(
-                    value = v,
-                    label = lbl,
-                    accent = null,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        }
+        AppleStatRow(items = liveTiles)
 
-        // Top Items (Real-time tracked, falling back to existing recent items if empty)
-        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        AppleHairline()
+
+        // Top Items (Clean iOS Grouped List)
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             PodiumText(
                 text = when (cat) {
-                    InsightsCategory.YOUTUBE -> if (isAr) "أكثر الفيديوهات مشاهدة" else "Top Watched Videos"
-                    InsightsCategory.BOOKS -> if (isAr) "الكتب المقروءة" else "Top Read Books"
-                    InsightsCategory.GALLERY -> if (isAr) "الأكثر معاينة" else "Most Viewed Media"
-                    InsightsCategory.QURAN -> if (isAr) "أكثر السور استماعاً وقراءة" else "Most Read & Listened Surahs"
-                    InsightsCategory.RADIO -> if (isAr) "أكثر المحطّات استماعاً" else "Top Radio Stations"
-                    else -> if (isAr) "الأكثر تشغيلاً" else "Top Played"
+                    InsightsCategory.YOUTUBE -> lang.t("Top Watched", "أكثر الفيديوهات مشاهدة", "Les plus regardés", "En çok izlenen", "Чаще смотрели")
+                    InsightsCategory.BOOKS -> lang.t("Top Read", "الكتب المقروءة", "Les plus lus", "En çok okunan", "Чаще читали")
+                    InsightsCategory.GALLERY -> lang.t("Most Viewed", "الأكثر معاينة", "Les plus vus", "En çok bakılan", "Чаще открывали")
+                    InsightsCategory.QURAN -> lang.t("Top Surahs", "أكثر السور", "Sourates fréquentes", "En çok dinlenen sureler", "Популярные суры")
+                    InsightsCategory.RADIO -> lang.t("Top Stations", "أكثر المحطّات", "Stations favorites", "En çok dinlenen istasyonlar", "Топ станций")
+                    else -> lang.t("Top Played", "الأكثر تشغيلاً", "Les plus écoutés", "En çok çalınan", "Чаще слушали")
                 },
-                style = type.caption,
+                style = type.caption.copy(fontWeight = FontWeight.Medium),
                 color = colors.labelSecondary,
             )
 
             if (stats.topItems.isNotEmpty()) {
-                stats.topItems.take(4).forEachIndexed { idx, item ->
-                    InsightTopItemRow(
-                        rank = idx + 1,
-                        title = item.title,
-                        subtitle = item.subtitle,
-                        trailing = if (item.durationMs > 0L) formatInsightsDuration(item.durationMs) else "${item.count}×",
-                        accent = accent,
-                    )
+                val shown = stats.topItems.take(4)
+                Column {
+                    shown.forEachIndexed { idx, item ->
+                        AppleListRow(
+                            rank = idx + 1,
+                            title = item.title,
+                            subtitle = item.subtitle,
+                            trailing = if (item.durationMs > 0L) formatInsightsDuration(item.durationMs) else "${item.count}×",
+                        )
+                        if (idx < shown.lastIndex) AppleHairline(indentStart = 20.dp)
+                    }
                 }
             } else {
                 val fallback: List<Pair<String, String>> = when (cat) {
@@ -1002,18 +1016,27 @@ private fun CategoryReportCard(
                     else -> emptyList()
                 }
                 if (fallback.isNotEmpty()) {
-                    fallback.take(4).forEachIndexed { idx, (t, s) ->
-                        InsightTopItemRow(
-                            rank = idx + 1,
-                            title = t,
-                            subtitle = s,
-                            trailing = if (isAr) "سابقاً" else "Recent",
-                            accent = accent,
-                        )
+                    val shown = fallback.take(4)
+                    Column {
+                        shown.forEachIndexed { idx, (t, s) ->
+                            AppleListRow(
+                                rank = idx + 1,
+                                title = t,
+                                subtitle = s,
+                                trailing = lang.t("Recent", "سابقاً", "Récent", "Son", "Недавно"),
+                            )
+                            if (idx < shown.lastIndex) AppleHairline(indentStart = 20.dp)
+                        }
                     }
                 } else {
                     PodiumText(
-                        text = if (isAr) "لا يوجد نشاط مسجّل في هذه الفترة بعد." else "No activity recorded for this period yet.",
+                        text = lang.t(
+                            "No activity recorded yet.",
+                            "لا يوجد نشاط في هذه الفترة بعد.",
+                            "Aucune activité enregistrée.",
+                            "Henüz kayıtlı etkinlik yok.",
+                            "Активность пока не записана.",
+                        ),
                         style = type.footnote,
                         color = colors.labelTertiary,
                     )
@@ -1024,66 +1047,86 @@ private fun CategoryReportCard(
 }
 
 @Composable
-private fun InsightMetricTile(
-    value: String,
-    label: String,
-    accent: Color?,
-    modifier: Modifier = Modifier,
+private fun AppleHairline(
+    indentStart: androidx.compose.ui.unit.Dp = 0.dp,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = indentStart)
+            .height(0.5.dp)
+            .background(PodiumTheme.colors.separator.copy(alpha = 0.38f)),
+    )
+}
+
+@Composable
+private fun AppleStatRow(
+    items: List<Pair<String, String>>,
 ) {
     val colors = PodiumTheme.colors
     val type = PodiumTheme.type
-    Column(
-        modifier = modifier
-            .background(colors.canvas.copy(alpha = 0.65f), ContinuousShape(12.dp))
-            .border(1.dp, colors.separator.copy(alpha = 0.7f), ContinuousShape(12.dp))
-            .padding(horizontal = 8.dp, vertical = 9.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        PodiumText(
-            text = value,
-            style = type.rowFocused,
-            color = accent ?: colors.labelPrimary,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-        )
-        PodiumText(
-            text = label,
-            style = type.footnote,
-            color = colors.labelSecondary,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-        )
+        items.forEachIndexed { idx, (value, label) ->
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.Start,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                PodiumText(
+                    text = value,
+                    style = type.rowFocused.copy(fontWeight = FontWeight.SemiBold),
+                    color = colors.labelPrimary,
+                    maxLines = 1,
+                )
+                PodiumText(
+                    text = label,
+                    style = type.footnote,
+                    color = colors.labelTertiary,
+                    maxLines = 1,
+                )
+            }
+            if (idx < items.lastIndex) {
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp)
+                        .width(0.5.dp)
+                        .height(26.dp)
+                        .background(colors.separator.copy(alpha = 0.35f)),
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun InsightTopItemRow(
+private fun AppleListRow(
     rank: Int,
     title: String,
     subtitle: String,
     trailing: String,
-    accent: Color,
 ) {
     val colors = PodiumTheme.colors
     val type = PodiumTheme.type
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(colors.canvas.copy(alpha = 0.5f), ContinuousShape(10.dp))
-            .padding(horizontal = 10.dp, vertical = 7.dp),
+            .padding(vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         PodiumText(
             text = "$rank",
-            style = type.caption,
-            color = accent,
+            style = type.footnote,
+            color = colors.labelTertiary,
+            modifier = Modifier.width(12.dp),
         )
         Column(modifier = Modifier.weight(1f)) {
             PodiumText(
                 text = title,
-                style = type.footnote,
+                style = type.footnote.copy(fontWeight = FontWeight.Medium),
                 color = colors.labelPrimary,
                 maxLines = 1,
             )

@@ -110,12 +110,32 @@ enum class AppearanceLevel(val label: String, val step: Float) {
 /** Whether the chosen background picture can be shown (the app reads it). */
 enum class BackgroundImageStatus { NONE, READY, UNAVAILABLE }
 
-private enum class AppearanceRow { DeviceBody, VirtualDisplay }
+private enum class AppearanceRow {
+    DeviceBody,
+    VirtualDisplay,
+    Mode,
+    ChortArt,
+    NowPlayingLayout,
+    HideNowPlayingTray,
+    FullScreen,
+    TitleBarBattery,
+}
 
-/** Settings ▸ Appearance: the body, and the display inside it. */
+/** Settings ▸ Appearance: the body, the display inside it, visual Modes, CHORT Art, Now Playing, and display chrome. */
 @Composable
-fun AppearanceScreen(repository: DeviceSettingsRepository, onDeviceBody: () -> Unit, onVirtualDisplay: () -> Unit) {
+fun AppearanceScreen(
+    repository: DeviceSettingsRepository,
+    onDeviceBody: () -> Unit,
+    onVirtualDisplay: () -> Unit,
+    onMode: () -> Unit = {},
+    onChortArt: () -> Unit = {},
+) {
     val appearance by repository.appearance.collectAsStateWithLifecycle()
+    val nowPlayingStyle by repository.nowPlayingStyle.collectAsStateWithLifecycle()
+    val hideNowPlayingTray by repository.hideNowPlayingTray.collectAsStateWithLifecycle()
+    val immersive by repository.immersive.collectAsStateWithLifecycle()
+    val titleBarBattery by repository.titleBarBattery.collectAsStateWithLifecycle()
+    val haptics = rememberPodiumHaptics()
     val strings = LocalAppStrings.current
     val rows = AppearanceRow.entries
     val focus = rememberFocusListState("appearance")
@@ -124,6 +144,25 @@ fun AppearanceScreen(repository: DeviceSettingsRepository, onDeviceBody: () -> U
         when (rows[index]) {
             AppearanceRow.DeviceBody -> onDeviceBody()
             AppearanceRow.VirtualDisplay -> onVirtualDisplay()
+            AppearanceRow.Mode -> onMode()
+            AppearanceRow.ChortArt -> onChortArt()
+            AppearanceRow.NowPlayingLayout -> {
+                val next = nowPlayingStyle.next()
+                haptics.toggle(on = next != app.podium.core.designsystem.shell.NowPlayingStyle.MODERN)
+                repository.setNowPlayingStyle(next)
+            }
+            AppearanceRow.HideNowPlayingTray -> {
+                haptics.toggle(on = !hideNowPlayingTray)
+                repository.setHideNowPlayingTray(!hideNowPlayingTray)
+            }
+            AppearanceRow.FullScreen -> {
+                haptics.toggle(on = !immersive)
+                repository.setImmersive(!immersive)
+            }
+            AppearanceRow.TitleBarBattery -> if (!immersive) haptics.reject() else {
+                haptics.toggle(on = !titleBarBattery)
+                repository.setTitleBarBattery(!titleBarBattery)
+            }
         }
     }
     ListInputEffect(focus, onActivate = activate)
@@ -137,14 +176,151 @@ fun AppearanceScreen(repository: DeviceSettingsRepository, onDeviceBody: () -> U
             when (row) {
                 AppearanceRow.DeviceBody -> appearance.baseArgb?.let { MenuPreview.Swatch(Color(it)) } ?: MenuPreview.Instrument
                 AppearanceRow.VirtualDisplay -> MenuPreview.Swatch(canvas)
+                AppearanceRow.Mode -> MenuPreview.Swatch(Color(appearance.screen.menuGradientArgb))
+                else -> MenuPreview.Instrument
             }
         },
         modifier = Modifier.fillMaxSize(),
     ) { row, _, focused ->
         when (row) {
-            // The glimpse beyond the arc shows each half; the paper column is too narrow for summaries.
             AppearanceRow.DeviceBody -> MenuRow(strings.deviceBody, focused)
             AppearanceRow.VirtualDisplay -> MenuRow(strings.virtualDisplay, focused)
+            AppearanceRow.Mode -> MenuRow(strings.appearanceMode, focused)
+            AppearanceRow.ChortArt -> MenuRow(
+                "CHORT Art",
+                focused,
+                value = when (strings) {
+                    is app.podium.core.designsystem.l10n.ArabicStrings -> "ملصقات، مساعدة، إيقاف"
+                    is app.podium.core.designsystem.l10n.FrenchStrings -> "Autocollants, aide, éteindre"
+                    is app.podium.core.designsystem.l10n.TurkishStrings -> "Çıkartmalar, yardım, kapat"
+                    is app.podium.core.designsystem.l10n.RussianStrings -> "Стикеры, помощь, выкл."
+                    else -> "Stickers, help, turn off"
+                },
+            )
+            AppearanceRow.NowPlayingLayout -> MenuRow(
+                strings.nowPlayingLayout,
+                focused,
+                value = when (nowPlayingStyle) {
+                    app.podium.core.designsystem.shell.NowPlayingStyle.MODERN -> strings.modern
+                    app.podium.core.designsystem.shell.NowPlayingStyle.NOSTALGIC -> strings.nostalgic
+                    app.podium.core.designsystem.shell.NowPlayingStyle.ARCH -> strings.nowPlayingArch
+                },
+                showChevron = false,
+            )
+            AppearanceRow.HideNowPlayingTray -> MenuRow(
+                strings.hideNowPlayingTray,
+                focused,
+                value = if (hideNowPlayingTray) strings.hidesWhenIdle else strings.alwaysShown,
+                showChevron = false,
+            )
+            AppearanceRow.FullScreen -> MenuRow(
+                strings.fullScreen,
+                focused,
+                value = if (immersive) strings.on else strings.off,
+                showChevron = false,
+            )
+            AppearanceRow.TitleBarBattery -> MenuRow(
+                strings.batteryInTitleBar,
+                focused,
+                value = if (!immersive) strings.fullScreenOnly else if (titleBarBattery) strings.shown else strings.hidden,
+                enabled = immersive,
+                showChevron = false,
+            )
+        }
+    }
+}
+
+private enum class ModeRow { MenuGradient, GradientColor, SubMenuPreview, BreadcrumbArch, HeaderTitle, StatusPill }
+
+/** Settings ▸ Appearance ▸ Mode: toggle Mode 1 (curved gradient + color), Mode 2 (blurred sub-menu preview), Mode 3 (left breadcrumb arch), Header Title, and Status Pill. */
+@Composable
+fun AppearanceModeScreen(
+    repository: DeviceSettingsRepository,
+    onGradientColor: () -> Unit,
+) {
+    val appearance by repository.appearance.collectAsStateWithLifecycle()
+    val strings = LocalAppStrings.current
+    val screen = appearance.screen
+    val rows = ModeRow.entries
+    val focus = rememberFocusListState("appearance-mode")
+    val haptics = rememberPodiumHaptics()
+    val activate: (Int) -> Unit = { index ->
+        when (rows[index]) {
+            ModeRow.MenuGradient -> {
+                repository.setAppearance(appearance.copy(screen = screen.copy(menuGradientEnabled = !screen.menuGradientEnabled)))
+                haptics.confirm()
+            }
+            ModeRow.GradientColor -> onGradientColor()
+            ModeRow.SubMenuPreview -> {
+                repository.setAppearance(appearance.copy(screen = screen.copy(subMenuBlurPreview = !screen.subMenuBlurPreview)))
+                haptics.confirm()
+            }
+            ModeRow.BreadcrumbArch -> {
+                repository.setAppearance(appearance.copy(screen = screen.copy(breadcrumbArchEnabled = !screen.breadcrumbArchEnabled)))
+                haptics.confirm()
+            }
+            ModeRow.HeaderTitle -> {
+                repository.setAppearance(appearance.copy(screen = screen.copy(showHeaderTitle = !screen.showHeaderTitle)))
+                haptics.confirm()
+            }
+            ModeRow.StatusPill -> {
+                repository.setAppearance(appearance.copy(screen = screen.copy(showStatusPill = !screen.showStatusPill)))
+                haptics.confirm()
+            }
+        }
+    }
+    ListInputEffect(focus, onActivate = activate)
+    FocusList(
+        items = rows,
+        state = focus,
+        key = { it },
+        contentPadding = LocalScreenInsets.current.listPadding(),
+        onActivate = activate,
+        preview = { row ->
+            when (row) {
+                ModeRow.MenuGradient, ModeRow.GradientColor -> MenuPreview.Swatch(Color(screen.menuGradientArgb))
+                ModeRow.SubMenuPreview, ModeRow.BreadcrumbArch, ModeRow.HeaderTitle, ModeRow.StatusPill -> MenuPreview.Instrument
+            }
+        },
+        modifier = Modifier.fillMaxSize(),
+    ) { row, _, focused ->
+        when (row) {
+            ModeRow.MenuGradient -> MenuRow(
+                label = strings.menuGradient,
+                focused = focused,
+                value = if (screen.menuGradientEnabled) strings.on else strings.off,
+                showChevron = false,
+            )
+            ModeRow.GradientColor -> MenuRow(
+                label = strings.menuGradientColor,
+                focused = focused,
+                leadingContent = { Swatch(Color(screen.menuGradientArgb)) },
+                showChevron = true,
+            )
+            ModeRow.SubMenuPreview -> MenuRow(
+                label = strings.subMenuBlurPreview,
+                focused = focused,
+                value = if (screen.subMenuBlurPreview) strings.on else strings.off,
+                showChevron = false,
+            )
+            ModeRow.BreadcrumbArch -> MenuRow(
+                label = strings.breadcrumbArch,
+                focused = focused,
+                value = if (screen.breadcrumbArchEnabled) strings.on else strings.off,
+                showChevron = false,
+            )
+            ModeRow.HeaderTitle -> MenuRow(
+                label = strings.showHeaderTitle,
+                focused = focused,
+                value = if (screen.showHeaderTitle) strings.on else strings.off,
+                showChevron = false,
+            )
+            ModeRow.StatusPill -> MenuRow(
+                label = strings.showStatusPill,
+                focused = focused,
+                value = if (screen.showStatusPill) strings.on else strings.off,
+                showChevron = false,
+            )
         }
     }
 }

@@ -175,6 +175,8 @@ fun NowPlayingScreen(
     autoHideTray: Boolean = false,
     /** Settings ▸ Now Playing (D-109): the original's own screen, with no playback keys on the display. */
     nostalgic: Boolean = false,
+    /** Settings ▸ Now Playing layout model: Modern, Nostalgic, or Arch. */
+    style: app.podium.core.designsystem.shell.NowPlayingStyle = if (nostalgic) app.podium.core.designsystem.shell.NowPlayingStyle.NOSTALGIC else app.podium.core.designsystem.shell.NowPlayingStyle.MODERN,
     /** Offline download actions for online songs. */
     isDownloaded: ((TrackId) -> Boolean)? = null,
     isDownloading: ((TrackId) -> Boolean)? = null,
@@ -584,7 +586,7 @@ fun NowPlayingScreen(
     GlassHost(
         modifier = Modifier.fillMaxSize(),
         content = {
-            if (PodiumTheme.colors.style == DisplayStyle.GLASS) {
+            if (PodiumTheme.colors.style == DisplayStyle.GLASS && style != app.podium.core.designsystem.shell.NowPlayingStyle.ARCH) {
                 val art = rememberArtworkState(item.artworkUri, 96.dp)
                 val cover = rememberCoverAnalysis(art.bitmap, art.settled)
                 AlbumAtmosphere(
@@ -601,8 +603,9 @@ fun NowPlayingScreen(
                 // Portrait only (D-108), so the display is always taller than it is wide; a short one
                 // still moves the cover beside the title, where a stacked cover would stop meaning much.
                 when {
+                    style == app.podium.core.designsystem.shell.NowPlayingStyle.ARCH -> ArchPortrait(parts)
                     // The nostalgic screen (D-109) has no transport, so it fits a short display too.
-                    nostalgic -> NostalgicPortrait(parts)
+                    style == app.podium.core.designsystem.shell.NowPlayingStyle.NOSTALGIC -> NostalgicPortrait(parts)
                     maxHeight - StackedControlsHeight < maxWidth * 0.45f -> CompactLayout(parts)
                     else -> PortraitLayout(parts)
                 }

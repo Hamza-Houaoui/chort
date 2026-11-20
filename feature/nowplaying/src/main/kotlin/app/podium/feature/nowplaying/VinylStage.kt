@@ -421,7 +421,6 @@ internal fun VinylStage(controller: PlaybackController, pulse: AudioPulse, vinyl
                 else -> easeOut(segment(e, 1.0f, 0.45f))
             }
             drawTonearm(geometry, arm.value, armPresence)
-            drawVisualiser(geometry, pill.value * fade, level.floatValue * ((pill.value - 0.55f) / 0.45f).coerceIn(0f, 1f), clock.floatValue)
         }
         // The song, minimal, at the foot; the times beside the visualiser while seeking.
         val seekShown by animateSeekPresence(seeking)

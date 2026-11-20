@@ -42,6 +42,8 @@ interface AppStrings {
     val insights: String
     val listenTogether: String
     val voiceMemos: String
+    val lifestyle: String
+    val tools: String
     val shuffleSongs: String
     val nowPlaying: String
     val settings: String
@@ -115,6 +117,7 @@ interface AppStrings {
     val hidden: String
     val fullScreenOnly: String
     val nostalgic: String
+    val nowPlayingArch: String
     val modern: String
     val hidesWhenIdle: String
     val alwaysShown: String
@@ -125,6 +128,13 @@ interface AppStrings {
 
     // Appearance
     val virtualDisplay: String
+    val appearanceMode: String get() = "Mode"
+    val menuGradient: String get() = "Menu Gradient"
+    val menuGradientColor: String get() = "Gradient Color"
+    val subMenuBlurPreview: String get() = "Sub-Menu Preview"
+    val breadcrumbArch: String get() = "Back Arch"
+    val showHeaderTitle: String get() = "Header Title"
+    val showStatusPill: String get() = "Status Pill"
     val theme: String
     val font: String
     val lyricsFont: String
@@ -453,6 +463,8 @@ object EnglishStrings : AppStrings {
     override val insights = "Insights"
     override val listenTogether = "Listen together"
     override val voiceMemos = "Voice Memos"
+    override val lifestyle = "Lifestyle"
+    override val tools = "Tools"
     override val shuffleSongs = "Shuffle songs"
     override val nowPlaying = "Now Playing"
     override val settings = "Settings"
@@ -522,6 +534,7 @@ object EnglishStrings : AppStrings {
     override val hidden = "Hidden"
     override val fullScreenOnly = "Full screen only"
     override val nostalgic = "Nostalgic"
+    override val nowPlayingArch = "Arch"
     override val modern = "New"
     override val hidesWhenIdle = "Hides when idle"
     override val alwaysShown = "Always shown"
@@ -622,6 +635,8 @@ object ArabicStrings : AppStrings {
     override val insights = "الإحصائيات"
     override val listenTogether = "استماع مشترك"
     override val voiceMemos = "مذكرات صوتية"
+    override val lifestyle = "نمط الحياة"
+    override val tools = "أدوات"
     override val shuffleSongs = "خلط الأغاني"
     override val nowPlaying = "قيد التشغيل"
     override val settings = "الإعدادات"
@@ -701,6 +716,7 @@ object ArabicStrings : AppStrings {
     override val hidden = "مخفي"
     override val fullScreenOnly = "ملء الشاشة فقط"
     override val nostalgic = "كلاسيكي"
+    override val nowPlayingArch = "قوس"
     override val modern = "حديث"
     override val hidesWhenIdle = "يختفي عند الخمول"
     override val alwaysShown = "ظاهر دائماً"
@@ -710,6 +726,13 @@ object ArabicStrings : AppStrings {
     override val automaticChecks = "فحص تلقائي"
 
     override val virtualDisplay = "الشاشة الافتراضية"
+    override val appearanceMode = "الوضع (Mode)"
+    override val menuGradient = "تدرّج القائمة"
+    override val menuGradientColor = "لون التدرّج"
+    override val subMenuBlurPreview = "معاينة القوائم الفرعية"
+    override val breadcrumbArch = "قوس العودة"
+    override val showHeaderTitle = "عنوان الهيدر"
+    override val showStatusPill = "شريط الحالة العلوي"
     override val theme = "السمة"
     override val font = "الخط"
     override val lyricsFont = "خط الكلمات"
@@ -981,6 +1004,8 @@ object FrenchStrings : AppStrings {
     override val insights = "Statistiques"
     override val listenTogether = "Écouter ensemble"
     override val voiceMemos = "Mémos vocaux"
+    override val lifestyle = "Style de vie"
+    override val tools = "Outils"
     override val shuffleSongs = "Lecture aléatoire"
     override val nowPlaying = "À l'écoute"
     override val settings = "Paramètres"
@@ -1050,6 +1075,7 @@ object FrenchStrings : AppStrings {
     override val hidden = "Masquée"
     override val fullScreenOnly = "Plein écran uniquement"
     override val nostalgic = "Nostalgique"
+    override val nowPlayingArch = "Arche"
     override val modern = "Moderne"
     override val hidesWhenIdle = "Masquer en veille"
     override val alwaysShown = "Toujours visible"
@@ -1059,6 +1085,13 @@ object FrenchStrings : AppStrings {
     override val automaticChecks = "Vérification automatique"
 
     override val virtualDisplay = "Écran virtuel"
+    override val appearanceMode = "Mode"
+    override val menuGradient = "Dégradé du menu"
+    override val menuGradientColor = "Couleur du dégradé"
+    override val subMenuBlurPreview = "Aperçu sous-menu"
+    override val breadcrumbArch = "Arche retour"
+    override val showHeaderTitle = "Titre d'en-tête"
+    override val showStatusPill = "Pilule d'état"
     override val theme = "Thème"
     override val font = "Police"
     override val lyricsFont = "Police des paroles"
@@ -1330,6 +1363,8 @@ object TurkishStrings : AppStrings {
     override val insights = "İstatistikler"
     override val listenTogether = "Birlikte Dinle"
     override val voiceMemos = "Ses Kayıtları"
+    override val lifestyle = "Yaşam Tarzı"
+    override val tools = "Araçlar"
     override val shuffleSongs = "Karışık Çal"
     override val nowPlaying = "Şu An Çalınan"
     override val settings = "Ayarlar"
@@ -1399,6 +1434,7 @@ object TurkishStrings : AppStrings {
     override val hidden = "Gizli"
     override val fullScreenOnly = "Yalnızca tam ekran"
     override val nostalgic = "Nostaljik"
+    override val nowPlayingArch = "Kemer"
     override val modern = "Yeni"
     override val hidesWhenIdle = "Boştayken gizle"
     override val alwaysShown = "Her zaman göster"
@@ -1408,6 +1444,13 @@ object TurkishStrings : AppStrings {
     override val automaticChecks = "Otomatik denetim"
 
     override val virtualDisplay = "Sanal ekran"
+    override val appearanceMode = "Mod"
+    override val menuGradient = "Menü gradyanı"
+    override val menuGradientColor = "Gradyan rengi"
+    override val subMenuBlurPreview = "Alt menü önizleme"
+    override val breadcrumbArch = "Geri kemeri"
+    override val showHeaderTitle = "Üst başlık"
+    override val showStatusPill = "Durum çubuğu"
     override val theme = "Tema"
     override val font = "Yazı tipi"
     override val lyricsFont = "Söz yazı tipi"
@@ -1679,6 +1722,8 @@ object RussianStrings : AppStrings {
     override val insights = "Статистика"
     override val listenTogether = "Слушать вместе"
     override val voiceMemos = "Диктофон"
+    override val lifestyle = "Стиль жизни"
+    override val tools = "Инструменты"
     override val shuffleSongs = "Перемешать песни"
     override val nowPlaying = "Сейчас играет"
     override val settings = "Настройки"
@@ -1766,6 +1811,7 @@ object RussianStrings : AppStrings {
     override val hidden = "Скрыто"
     override val fullScreenOnly = "Только в полноэкранном"
     override val nostalgic = "Ностальгический"
+    override val nowPlayingArch = "Дуга"
     override val modern = "Новый"
     override val hidesWhenIdle = "Скрывать при простое"
     override val alwaysShown = "Всегда показывать"
@@ -1775,6 +1821,13 @@ object RussianStrings : AppStrings {
     override val automaticChecks = "Автопроверка"
 
     override val virtualDisplay = "Виртуальный дисплей"
+    override val appearanceMode = "Режим"
+    override val menuGradient = "Градиент меню"
+    override val menuGradientColor = "Цвет градиента"
+    override val subMenuBlurPreview = "Предпросмотр подменю"
+    override val breadcrumbArch = "Дуга возврата"
+    override val showHeaderTitle = "Заголовок"
+    override val showStatusPill = "Индикатор статуса"
     override val theme = "Тема"
     override val font = "Шрифт"
     override val lyricsFont = "Шрифт текста"

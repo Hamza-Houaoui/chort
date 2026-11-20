@@ -1,14 +1,5 @@
 package app.podium.core.designsystem.shell
 
-import android.graphics.Bitmap
-import android.graphics.BitmapShader
-import android.graphics.LinearGradient
-import android.graphics.Matrix
-import android.graphics.Paint
-import android.graphics.PathMeasure
-import android.graphics.RectF
-import android.graphics.Shader
-import android.graphics.Typeface
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
@@ -31,34 +22,19 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.FilterQuality
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.ShaderBrush
-import androidx.compose.ui.graphics.TileMode
-import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.compose.ui.graphics.asComposePath
-import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.clipPath
-import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import android.graphics.BitmapFactory
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import app.podium.core.designsystem.R
 import app.podium.core.designsystem.theme.PodiumTheme
 import app.podium.core.interaction.InputTargetEffect
 import app.podium.core.interaction.PodiumInput
@@ -67,14 +43,10 @@ import app.podium.core.interaction.rememberPodiumHaptics
 import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.cos
-import kotlin.math.exp
-import kotlin.math.ln
-import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
-import kotlin.math.sqrt
 
 /**
  * Where the boot is (D-102), shared with the screen it reveals: the boot writes [time]; the screen
@@ -86,10 +58,10 @@ class BootReveal {
     var time by mutableFloatStateOf(0f)
         internal set
 
-    /** With reduced motion the mark crossfades to the menu instead of the dive: 0–1, or −1 while it doesn't. */
+    /** With reduced motion the mascot crossfades to the menu: 0–1, or −1 while it doesn't. */
     internal var fade by mutableFloatStateOf(-1f)
 
-    /** How far the menu has come into view: 0 hidden behind the mark, 1 all there is. */
+    /** How far the menu has come into view: 0 hidden behind boot, 1 all there is. */
     val reveal: Float get() = if (fade >= 0f) fade else BootTimeline.revealAt(time)
 
     /** Starts over (the device switched off and on again). */
@@ -100,50 +72,48 @@ class BootReveal {
 }
 
 /**
- * The boot's choreography (D-102), in milliseconds. A dot swells into a lens holding the P, drawn in
- * fine lines with a prism's fringes; the P resolves into solid silver, spins down to its edge, and
- * the whole wordmark unrolls from that sliver as from a turning cylinder; it settles, holds a beat,
- * and the camera dives through the O into the menu.
+ * CHORT Mascot Boot Choreography (total 2.8 s — under 3 s):
+ * 1. 0–140 ms: Themed screen wakes + chime.
+ * 2. 140–720 ms: Glossy 3D robot head + headphones peeks up from behind the real Click Wheel.
+ * 3. 720–1220 ms: Robot rises into the virtual screen with glowing orbit ring & floating notes.
+ * 4. 1220–2250 ms: Friendly head tilt, cute eye blink, and two smooth right-hand "hello" waves.
+ * 5. 2250–2800 ms: Smooth fade & reveal into the live Home menu.
  */
 internal object BootTimeline {
-    const val DOT = 100f
-    const val BUBBLE_LANDS = 560f
-    const val BUBBLE_END = 650f
-    const val HOLD_END = 1150f
-    const val RESOLVE_END = 1500f
-    const val SPIN_END = 1780f
-    const val UNROLL_END = 2380f
-    const val SETTLE_END = 2620f
-    const val DIVE_START = 2900f
-    const val END = 3550f
+    const val CHIME = 120f
+    const val PEEK_START = 140f
+    const val PEEK_END = 700f
+    const val RISE_START = 740f
+    const val RISE_END = 1220f
+    const val WAVE_START = 1180f
+    const val WAVE_END = 2280f
+    const val EXIT_START = 2280f
+    const val END = 2800f
 
     fun phase(t: Float, from: Float, to: Float): Float = ((t - from) / (to - from)).coerceIn(0f, 1f)
 
-    /** The dive's progress, eased in and out: the camera gathers speed into the O and lands softly. */
-    fun dive(t: Float): Float {
-        val v = phase(t, DIVE_START, END)
-        val a = v.pow(2.2f)
-        val b = (1f - v).pow(2.2f)
+    fun exit(t: Float): Float {
+        val v = phase(t, EXIT_START, END)
+        val a = v.pow(2.0f)
+        val b = (1f - v).pow(2.0f)
         return if (a + b == 0f) 0f else a / (a + b)
     }
 
-    fun revealAt(t: Float): Float = if (t < DIVE_START) 0f else dive(t)
+    fun revealAt(t: Float): Float = if (t < EXIT_START) 0f else exit(t)
 }
 
-/**
- * Power-on (D-26, D-102). Podium's mark reveals itself — the P in a lens of fine lines, the
- * wordmark unrolling from it — and the camera dives through the O into the menu, which [reveal]
- * brings forward behind it. The startup chord plays as the lens opens ([onChime]); each beat lands
- * with a haptic. About 3.5 s; any Wheel press skips to a quick dive. With reduced motion the
- * wordmark appears still and crossfades to the menu.
- *
- * Drawn on one canvas from one clock (the frames are a function of time alone), in front of the
- * live menu: before the dive the canvas is opaque; during it only what's outside the O's counter is
- * black. Touches never reach the menu until it's there.
- */
+private const val SKIP_EXIT_MS = 220
+private const val REDUCED_HOLD_MS = 700L
+
 @Composable
-fun BootScreen(reveal: BootReveal, onChime: () -> Unit, onFinished: () -> Unit, modifier: Modifier = Modifier) {
+fun BootScreen(
+    reveal: BootReveal,
+    onChime: () -> Unit,
+    onFinished: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val reduced = PodiumTheme.motion.reduced
+    val colors = PodiumTheme.colors
     val haptics = rememberPodiumHaptics()
     val chime by rememberUpdatedState(onChime)
     val finished by rememberUpdatedState(onFinished)
@@ -157,16 +127,16 @@ fun BootScreen(reveal: BootReveal, onChime: () -> Unit, onFinished: () -> Unit, 
     LaunchedEffect(skip) {
         reveal.reset()
         if (skip) {
-            // Skipped: straight into a quick dive from wherever the mark is.
-            if (reduced) reveal.fade = 1f else animate(BootTimeline.DIVE_START, BootTimeline.END, animationSpec = tween(SKIP_DIVE_MS, easing = LinearEasing)) { v, _ -> reveal.time = v }
+            if (reduced) reveal.fade = 1f
+            else animate(BootTimeline.EXIT_START, BootTimeline.END, animationSpec = tween(SKIP_EXIT_MS, easing = LinearEasing)) { v, _ -> reveal.time = v }
             finished()
             return@LaunchedEffect
         }
         if (reduced) {
             chime()
-            reveal.time = BootTimeline.SETTLE_END
+            reveal.time = BootTimeline.RISE_END
             delay(REDUCED_HOLD_MS)
-            animate(0f, 1f, animationSpec = tween(200)) { v, _ -> reveal.fade = v }
+            animate(0f, 1f, animationSpec = tween(220)) { v, _ -> reveal.fade = v }
             finished()
             return@LaunchedEffect
         }
@@ -174,625 +144,544 @@ fun BootScreen(reveal: BootReveal, onChime: () -> Unit, onFinished: () -> Unit, 
         finished()
     }
 
-    // The beats: the chord as the lens opens, a touch at each landing.
+    // Subtle haptics synchronized with the mascot's arrival & wave
     LaunchedEffect(Unit) {
         if (reduced) return@LaunchedEffect
         var last = -1f
         snapshotFlow { reveal.time }.collect { t ->
             fun crossed(at: Float) = last < at && t >= at
             if (!skip) {
-                if (crossed(BootTimeline.DOT)) {
+                if (crossed(BootTimeline.CHIME)) {
                     chime()
                     haptics.tick()
                 }
-                if (crossed(BootTimeline.BUBBLE_LANDS)) haptics.press()
-                if (crossed(BootTimeline.SPIN_END)) haptics.tick()
-                if (crossed(BootTimeline.UNROLL_END)) haptics.press()
+                if (crossed(BootTimeline.PEEK_END)) haptics.tick()
+                if (crossed(BootTimeline.RISE_END)) haptics.press()
             }
-            if (crossed(BootTimeline.END - 1f)) haptics.confirm()
             last = t
         }
     }
 
-    BootMark(
-        time = { reveal.time },
-        fade = { reveal.fade },
+    val isDark = colors.isDark
+    val bgColor = colors.canvas
+    val noteColor = if (isDark) Color(0xFFE6EAF2) else Color(0xFF3A4150)
+    val glowColor = if (isDark) colors.highlight.copy(alpha = 0.24f) else Color(0xFF8AA8FF).copy(alpha = 0.20f)
+
+    Canvas(
         modifier = modifier
             .fillMaxSize()
-            .semantics { contentDescription = "Starting Podium" }
-            // Nothing beneath is touched while Podium starts.
+            .semantics { contentDescription = "CHORT" }
             .pointerInput(Unit) {
                 awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false).consume()
-                    do {
-                        val event = awaitPointerEvent()
-                        event.changes.forEach { it.consume() }
-                    } while (event.changes.any { it.pressed })
+                    awaitFirstDown(requireUnconsumed = false)
+                    skip = true
                 }
             },
-    )
-}
+    ) {
+        val t = reveal.time
+        val exitProg = if (reveal.fade >= 0f) reveal.fade else BootTimeline.exit(t)
+        val sceneAlpha = (1f - exitProg).coerceIn(0f, 1f)
+        if (sceneAlpha <= 0.005f) return@Canvas
 
-/**
- * The boot's frames: [time] milliseconds into [BootTimeline] (read while drawing). [fade] (0–1, or
- * negative) is reduced motion's crossfade to the menu.
- */
-@Composable
-internal fun BootMark(time: () -> Float, modifier: Modifier = Modifier, fade: () -> Float = { -1f }) {
-    val context = LocalContext.current
-    val logo = remember(context) {
-        BitmapFactory.decodeResource(context.resources, R.drawable.chort_boot_logo).asImageBitmap()
-    }
-    Canvas(modifier) {
-        val f = fade()
-        if (f >= 0f) {
-            drawRect(Color.Black, alpha = 1f - f)
-            drawChortLogo(logo, scale = 1f, alpha = 1f - f)
-            return@Canvas
-        }
-        drawChortBootFrame(time(), logo)
-    }
-}
+        // Theme-matched background that fades smoothly to reveal the live menu
+        drawRect(color = bgColor.copy(alpha = sceneAlpha))
 
-/** Draws the Chort Golden Wave logo centered with the given scale, alpha, and glow. */
-private fun DrawScope.drawChortLogo(
-    logo: ImageBitmap,
-    scale: Float,
-    alpha: Float,
-    glowRadius: Float = 0f,
-    glowAlpha: Float = 0f,
-) {
-    val targetSize = min(size.width, size.height) * 0.94f * scale
-    if (targetSize <= 1f || alpha <= 0f) return
-    val center = Offset(size.width / 2f, size.height / 2f)
+        // Soft studio halo behind the mascot
+        val w = size.width
+        val h = size.height
+        val unit = min(w, h) * 0.28f
+        val peekP = easeOutBack(BootTimeline.phase(t, BootTimeline.PEEK_START, BootTimeline.PEEK_END))
+        val riseP = easeOutBack(BootTimeline.phase(t, BootTimeline.RISE_START, BootTimeline.RISE_END), overshoot = 1.15f)
+        val waveP = BootTimeline.phase(t, BootTimeline.WAVE_START, BootTimeline.WAVE_END)
 
-    if (glowRadius > 0f && glowAlpha > 0f) {
+        // Vertical position:
+        // Starts hidden below bottom edge (behind the real Click Wheel),
+        // peeks up at bottom, then rises gracefully to center of virtual screen!
+        val startY = h + unit * 1.45f
+        val peekY = h - unit * 0.22f
+        val centerY = h * 0.56f
+        val baseY = lerpF(lerpF(startY, peekY, peekP), centerY, riseP)
+        val bobY = if (waveP > 0f) sin(waveP * PI.toFloat() * 4f) * unit * 0.035f else 0f
+        val exitLift = -exitProg * unit * 0.25f
+        val robotCenter = Offset(w / 2f, baseY + bobY + exitLift)
+
+        // Subtle ambient studio glow
         drawCircle(
             brush = Brush.radialGradient(
-                colors = listOf(
-                    Color(0xFF00E676).copy(alpha = glowAlpha * alpha * 0.55f),
-                    Color(0xFF00C853).copy(alpha = glowAlpha * alpha * 0.25f),
-                    Color.Transparent,
-                ),
-                center = center,
-                radius = glowRadius,
+                colors = listOf(glowColor.copy(alpha = glowColor.alpha * sceneAlpha * (0.4f + 0.6f * riseP)), Color.Transparent),
+                center = Offset(robotCenter.x, robotCenter.y - unit * 0.35f),
+                radius = unit * 2.2f,
             ),
-            radius = glowRadius,
-            center = center,
+            radius = unit * 2.2f,
+            center = Offset(robotCenter.x, robotCenter.y - unit * 0.35f),
         )
-    }
 
-    val topLeft = Offset(center.x - targetSize / 2f, center.y - targetSize / 2f)
-    drawImage(
-        image = logo,
-        dstOffset = IntOffset(topLeft.x.roundToInt(), topLeft.y.roundToInt()),
-        dstSize = IntSize(targetSize.roundToInt(), targetSize.roundToInt()),
-        alpha = alpha.coerceIn(0f, 1f),
-        filterQuality = FilterQuality.High,
-    )
-}
-
-/** One frame of the Chort boot animation at [t] ms. */
-private fun DrawScope.drawChortBootFrame(t: Float, logo: ImageBitmap) {
-    drawRect(Color.Black)
-    val center = Offset(size.width / 2f, size.height / 2f)
-
-    when {
-        // Phase 1: Golden dot appears, pulses and expands into the logo with a smooth bounce
-        t < BootTimeline.HOLD_END -> {
-            val grow = BootTimeline.phase(t, BootTimeline.DOT, BootTimeline.BUBBLE_END)
-            val scale = 0.05f + 0.95f * backOut(grow)
-            val alpha = BootTimeline.phase(t, 0f, BootTimeline.DOT + 200f)
-            val pulse = if (t > BootTimeline.BUBBLE_END) {
-                val held = BootTimeline.phase(t, BootTimeline.BUBBLE_END, BootTimeline.HOLD_END)
-                0.03f * sin(held * 2f * PI.toFloat() * 1.5f) * exp(-held * 2f)
-            } else 0f
-            val glowRadius = min(size.width, size.height) * (0.28f + 0.15f * grow)
-            drawChortLogo(logo, scale = (scale + pulse).coerceAtLeast(0.01f), alpha = alpha, glowRadius = glowRadius, glowAlpha = 0.6f * grow)
-        }
-        // Phase 2: Logo shines with expanding golden wave ring and settles
-        t < BootTimeline.DIVE_START -> {
-            val settle = BootTimeline.phase(t, BootTimeline.HOLD_END, BootTimeline.SETTLE_END)
-            val breathe = 1f + 0.02f * sin(settle * PI.toFloat())
-            val ringProgress = BootTimeline.phase(t, BootTimeline.HOLD_END, BootTimeline.UNROLL_END)
-            if (ringProgress in 0f..1f) {
-                val ringRadius = min(size.width, size.height) * (0.25f + 0.35f * ringProgress)
-                val ringAlpha = (1f - ringProgress) * 0.5f
-                drawCircle(
-                    color = Color(0xFF00E676).copy(alpha = ringAlpha),
-                    radius = ringRadius,
-                    center = center,
-                    style = Stroke(width = 3.dp.toPx() * (1f - ringProgress)),
-                )
-            }
-            val glowRadius = min(size.width, size.height) * 0.38f
-            drawChortLogo(logo, scale = breathe, alpha = 1f, glowRadius = glowRadius, glowAlpha = 0.4f)
-        }
-        // Phase 3: Dive through the center of the logo into the menu
-        else -> {
-            val e = BootTimeline.dive(t)
-            // Reveal hole opens from the center of the golden wave
-            val maxRadius = sqrt((size.width / 2f).pow(2) + (size.height / 2f).pow(2)) * 1.15f
-            val holeRadius = maxRadius * e.pow(1.8f)
-
-            if (holeRadius > 0.5f) {
-                val hole = Path().apply {
-                    addOval(Rect(center.x - holeRadius, center.y - holeRadius, center.x + holeRadius, center.y + holeRadius))
-                }
-                clipPath(hole, ClipOp.Difference) {
-                    drawRect(Color.Black)
-                }
-            } else {
-                drawRect(Color.Black)
-            }
-
-            // The logo expands and fades out smoothly as we dive through it
-            val scale = 1f + 3.5f * e.pow(1.5f)
-            val alpha = (1f - BootTimeline.phase(e, 0f, 0.45f)).coerceIn(0f, 1f)
-            if (alpha > 0f) {
-                drawChortLogo(logo, scale = scale, alpha = alpha, glowRadius = min(size.width, size.height) * 0.5f * scale, glowAlpha = 0.5f * alpha)
-            }
-        }
-    }
-}
-
-/** What the boot draws with, for one canvas size: the mark's outlines, laid out, and the wordmark as a picture. */
-internal class MarkArt private constructor(
-    val width: Float,
-    val height: Float,
-    /** "PODIUM", the P alone, and the O's counter, in the wordmark's own coordinates (baseline at 0). */
-    val word: Path,
-    val p: Path,
-    val counter: Path,
-    val wordBounds: Rect,
-    val pBounds: Rect,
-    val counterBounds: Rect,
-    /** The wordmark, silver with its flakes, exactly as drawn flat: what the cylinder unrolls. */
-    val picture: ImageBitmap,
-    /** Its flakes, for the flat wordmark. */
-    val flakes: ImageBitmap,
-) {
-    /** Where the flat wordmark's own coordinates map to the canvas (it is drawn centred, 1:1). */
-    val origin: Offset get() = Offset(width / 2f - wordBounds.center.x, height / 2f - wordBounds.center.y)
-
-    /** The lens's side: a little over two fifths of the shorter side. */
-    val lens: Float get() = min(width, height) * 0.42f
-
-    companion object {
-        fun build(typeface: Typeface, width: Float, height: Float, flakes: ImageBitmap): MarkArt {
-            // Three quarters of the width; on a wide, short screen, held to about a third of its height.
-            val markWidth = min(width * 0.76f, height * 1.8f)
-            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                this.typeface = typeface
-                textSize = markWidth / WordmarkEms
-                letterSpacing = -0.01f
-            }
-            val word = android.graphics.Path().also { paint.getTextPath("PODIUM", 0, 6, 0f, 0f, it) }
-            val p = android.graphics.Path().also { paint.getTextPath("P", 0, 1, 0f, 0f, it) }
-            val oAt = paint.measureText("PO") - paint.measureText("O")
-            val o = android.graphics.Path().also { paint.getTextPath("O", 0, 1, oAt, 0f, it) }
-            val counter = innermost(o)
-            val wb = bounds(word)
-            val picture = picture(word, wb, flakes)
-            return MarkArt(
-                width, height,
-                word.asComposePath(), p.asComposePath(), counter.asComposePath(),
-                wb, bounds(p), bounds(counter), picture, flakes,
+        // Orbit ring (back half drawn BEHIND robot body)
+        val ringAlpha = easeOutCubic(BootTimeline.phase(t, BootTimeline.RISE_START + 80f, BootTimeline.RISE_END + 100f)) * sceneAlpha
+        if (ringAlpha > 0.01f) {
+            drawOrbitRingHalf(
+                center = Offset(robotCenter.x, robotCenter.y + unit * 0.32f),
+                rx = unit * 1.55f * (0.72f + 0.28f * riseP),
+                ry = unit * 0.38f * (0.72f + 0.28f * riseP),
+                tiltDeg = -13f + sin(waveP * PI.toFloat() * 2f) * 2.5f,
+                alpha = ringAlpha,
+                isDark = isDark,
+                frontHalf = false,
             )
         }
 
-        private fun bounds(path: android.graphics.Path): Rect {
-            val r = RectF()
-            path.computeBounds(r, true)
-            return Rect(r.left, r.top, r.right, r.bottom)
-        }
+        // Floating music notes (pop in as robot rises and bob playfully)
+        val notesProg = easeOutCubic(BootTimeline.phase(t, BootTimeline.RISE_START + 160f, BootTimeline.RISE_END + 180f))
+        if (notesProg > 0.01f) {
+            val nAlpha = notesProg * sceneAlpha
+            val float1 = sin(waveP * PI.toFloat() * 2.5f) * unit * 0.09f
+            val float2 = sin(waveP * PI.toFloat() * 2.5f + 1.6f) * unit * 0.08f
+            val float3 = sin(waveP * PI.toFloat() * 2.5f + 3.1f) * unit * 0.07f
 
-        /** The smallest closed contour of a glyph: its counter. */
-        private fun innermost(glyph: android.graphics.Path): android.graphics.Path {
-            val measure = PathMeasure(glyph, false)
-            var best: android.graphics.Path? = null
-            var bestArea = Float.MAX_VALUE
-            do {
-                val contour = android.graphics.Path()
-                if (!measure.getSegment(0f, measure.length, contour, true)) continue
-                contour.close()
-                val r = RectF()
-                contour.computeBounds(r, true)
-                val area = r.width() * r.height()
-                if (area > 1f && area < bestArea) {
-                    bestArea = area
-                    best = contour
-                }
-            } while (measure.nextContour())
-            return best ?: glyph
-        }
-
-        /** The wordmark drawn into a bitmap of its own size: silver, white where the light falls, with its flakes. */
-        private fun picture(word: android.graphics.Path, wb: Rect, flakes: ImageBitmap): ImageBitmap {
-            val pad = 2
-            val w = (wb.width + pad * 2).roundToInt().coerceAtLeast(1)
-            val h = (wb.height + pad * 2).roundToInt().coerceAtLeast(1)
-            val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-            val canvas = android.graphics.Canvas(bitmap)
-            canvas.translate(pad - wb.left, pad - wb.top)
-            val silver = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                shader = LinearGradient(
-                    0f, wb.top, 0f, wb.bottom,
-                    SilverStops.map { it.second.toArgbInt() }.toIntArray(),
-                    SilverStops.map { it.first }.toFloatArray(),
-                    Shader.TileMode.CLAMP,
-                )
-            }
-            canvas.drawPath(word, silver)
-            canvas.save()
-            canvas.clipPath(word)
-            val sparkle = Paint().apply {
-                shader = BitmapShader(flakes.asAndroidBitmapCompat(), Shader.TileMode.REPEAT, Shader.TileMode.REPEAT).also { s ->
-                    s.setLocalMatrix(Matrix().apply { setTranslate(wb.left, wb.top) })
-                }
-            }
-            canvas.drawRect(wb.left, wb.top, wb.right, wb.bottom, sparkle)
-            canvas.restore()
-            return bitmap.asImageBitmap()
-        }
-    }
-}
-
-private fun Color.toArgbInt(): Int =
-    android.graphics.Color.argb((alpha * 255).roundToInt(), (red * 255).roundToInt(), (green * 255).roundToInt(), (blue * 255).roundToInt())
-
-private fun ImageBitmap.asAndroidBitmapCompat(): Bitmap = asAndroidBitmap()
-
-/** One frame of the boot at [t] ms. */
-internal fun DrawScope.drawBootFrame(t: Float, art: MarkArt) {
-    when {
-        t < BootTimeline.RESOLVE_END -> {
-            drawRect(Color.Black)
-            drawLens(t, art)
-        }
-        t < BootTimeline.SPIN_END -> {
-            drawRect(Color.Black)
-            drawSpin(t, art)
-        }
-        t < BootTimeline.UNROLL_END -> {
-            drawRect(Color.Black)
-            drawUnroll(t, art)
-        }
-        t < BootTimeline.DIVE_START -> {
-            drawRect(Color.Black)
-            val settle = BootTimeline.phase(t, BootTimeline.UNROLL_END, BootTimeline.SETTLE_END)
-            drawGlow(art, settle)
-            drawFlatMark(art, alpha = 1f, scale = 1f + 0.015f * (1f - easeOut(settle)))
-        }
-        else -> drawDive(t, art)
-    }
-}
-
-// --- The lens: a dot swells into a squircle holding the P in fine lines -------------------------
-
-private fun DrawScope.drawLens(t: Float, art: MarkArt) {
-    val c = Offset(size.width / 2f, size.height / 2f)
-    val grow = BootTimeline.phase(t, BootTimeline.DOT, BootTimeline.BUBBLE_END)
-    val dot = BootTimeline.phase(t, 0f, BootTimeline.DOT)
-    val resolve = BootTimeline.phase(t, BootTimeline.HOLD_END, BootTimeline.RESOLVE_END)
-    // Out of nothing: a faint dot, then a swell that overshoots and settles.
-    val scale = if (t < BootTimeline.DOT) 0.04f * dot else 0.04f + 0.96f * backOut(grow)
-    // Held: it breathes, wider then taller, and the breathing dies away.
-    val held = BootTimeline.phase(t, BootTimeline.BUBBLE_END, BootTimeline.RESOLVE_END)
-    val wobble = if (t > BootTimeline.BUBBLE_END) 0.028f * sin(held * 2f * PI.toFloat() * 2.2f) * exp(-held * 3.2f) else 0f
-    val shrink = 1f - 0.08f * easeInOut(resolve)
-    val side = art.lens * scale * shrink
-    val sx = side * (1f + wobble)
-    val sy = side * (1f - wobble)
-    // A circle that squares into the icon's squircle as it grows.
-    val square = easeInOut(BootTimeline.phase(t, 380f, BootTimeline.BUBBLE_END))
-    val corner = min(sx, sy) * (0.5f - 0.2f * square)
-    val lensAlpha = 1f - easeInOut(BootTimeline.phase(t, 1250f, BootTimeline.RESOLVE_END))
-    val topLeft = Offset(c.x - sx / 2f, c.y - sy / 2f)
-    val lensSize = Size(sx, sy)
-    val radius = CornerRadius(corner)
-
-    // Echoes of the rim, left behind as it lands.
-    val echo = BootTimeline.phase(t, BootTimeline.BUBBLE_END, 980f)
-    if (t > BootTimeline.BUBBLE_END && echo < 1f) {
-        for (k in 1..2) {
-            val e = 1f + 0.05f * k * (0.4f + echo)
-            drawRoundRect(
-                Iridescent(c),
-                Offset(c.x - sx * e / 2f, c.y - sy * e / 2f),
-                Size(sx * e, sy * e),
-                CornerRadius(corner * e),
-                alpha = (0.16f / k) * (1f - echo) * lensAlpha,
-                style = Stroke(1.5.dp.toPx()),
+            // Left beamed double note ♫
+            drawBeamedNote(
+                center = Offset(
+                    robotCenter.x - unit * (1.28f + 0.12f * (1f - notesProg)),
+                    robotCenter.y - unit * 0.38f + float1,
+                ),
+                scale = unit * 0.36f * (0.6f + 0.4f * notesProg),
+                tiltDeg = -12f + sin(waveP * PI.toFloat() * 3f) * 5f,
+                color = noteColor.copy(alpha = nAlpha * 0.90f),
+            )
+            // Top-right eighth note ♪
+            drawSingleNote(
+                center = Offset(
+                    robotCenter.x + unit * (1.28f + 0.10f * (1f - notesProg)),
+                    robotCenter.y - unit * 0.72f + float2,
+                ),
+                scale = unit * 0.30f * (0.6f + 0.4f * notesProg),
+                tiltDeg = 10f - sin(waveP * PI.toFloat() * 3f) * 5f,
+                color = noteColor.copy(alpha = nAlpha * 0.88f),
+            )
+            // Lower-right eighth note ♪
+            drawSingleNote(
+                center = Offset(
+                    robotCenter.x + unit * (1.36f + 0.10f * (1f - notesProg)),
+                    robotCenter.y + unit * 0.42f + float3,
+                ),
+                scale = unit * 0.28f * (0.6f + 0.4f * notesProg),
+                tiltDeg = 14f + sin(waveP * PI.toFloat() * 2.5f) * 4f,
+                color = noteColor.copy(alpha = nAlpha * 0.82f),
             )
         }
-    }
-    // The lens: nearly black glass, lit faintly from above, with the P inside in lines.
-    drawRoundRect(Color(0xFF07080A), topLeft, lensSize, radius, alpha = lensAlpha)
-    drawRoundRect(
-        Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.07f), Color.Transparent), startY = topLeft.y, endY = topLeft.y + sy * 0.6f),
-        topLeft, lensSize, radius, alpha = lensAlpha,
-    )
-    val lensPath = Path().apply { addRoundRect(androidx.compose.ui.geometry.RoundRect(Rect(topLeft, lensSize), radius)) }
-    // The P: as tall as a little over half the lens.
-    val pScale = side * 0.56f / art.pBounds.height
-    val pPath = Path().apply {
-        addPath(art.p)
-        transform(androidx.compose.ui.graphics.Matrix().apply {
-            translate(c.x, c.y)
-            scale(pScale, pScale)
-            translate(-art.pBounds.center.x, -art.pBounds.center.y)
-        })
-    }
-    clipPath(lensPath) {
-        drawLinedP(pPath, t, resolve, art, c, pScale)
-    }
-    // The rim: a thin iridescent edge, and its soft glow inside.
-    val rimShift = (t / 2400f) * 360f
-    drawRoundRect(Iridescent(c, rimShift), topLeft, lensSize, radius, alpha = 0.85f * lensAlpha, style = Stroke(2.dp.toPx()))
-    drawRoundRect(Iridescent(c, rimShift), topLeft + Offset(3f, 3f), Size(sx - 6f, sy - 6f), CornerRadius(max(corner - 3f, 0f)), alpha = 0.14f * lensAlpha, style = Stroke(6.dp.toPx()))
-}
 
-/** The P in fine horizontal lines through a prism: its colours part at the edges, then close up as it resolves into silver. */
-private fun DrawScope.drawLinedP(pPath: Path, t: Float, resolve: Float, art: MarkArt, c: Offset, pScale: Float) {
-    val pitch = 3.4.dp.toPx()
-    // The lines fill in as it resolves; their gaps close.
-    val duty = 0.52f + 0.48f * easeInOut(BootTimeline.phase(t, BootTimeline.HOLD_END, 1350f))
-    val drift = (t / 1000f) * pitch * 2.2f
-    val split = 2.6.dp.toPx() * (0.35f + 0.65f * (1f - BootTimeline.phase(t, BootTimeline.DOT, BootTimeline.BUBBLE_END))) *
-        (1f - BootTimeline.phase(t, BootTimeline.HOLD_END, 1300f))
-    val shimmer = sin(t / 260f) * 0.5f
-    fun lines(tint: Color) = Brush.verticalGradient(
-        0f to tint,
-        duty to tint,
-        duty to Color.Transparent,
-        1f to Color.Transparent,
-        startY = drift,
-        endY = drift + pitch,
-        tileMode = TileMode.Repeated,
-    )
-    val bright = 0.93f
-    val channels = listOf(
-        Color(bright, 0f, 0f) to -split * (1f + shimmer * 0.3f),
-        Color(0f, bright, 0f) to 0f,
-        Color(0f, 0f, bright) to split * (1f - shimmer * 0.3f),
-    )
-    for ((tint, dx) in channels) {
-        translate(left = dx) {
-            clipPath(pPath) { drawRect(lines(tint), topLeft = Offset(-dx, 0f), size = size, blendMode = BlendMode.Plus) }
+        // Cute head tilt & right-hand "hello" wave angles
+        val headTilt = when {
+            waveP <= 0f -> -4f * peekP
+            else -> -8f * sin(waveP * PI.toFloat() * 1.5f) - 4f * (1f - waveP)
         }
-    }
-    // Resolving: solid silver comes up over the lines.
-    val solid = easeInOut(BootTimeline.phase(t, 1250f, 1450f))
-    if (solid > 0f) {
-        drawPath(pPath, Brush.verticalGradient(*SilverStops, startY = c.y - art.pBounds.height * pScale / 2f, endY = c.y + art.pBounds.height * pScale / 2f), alpha = solid)
-    }
-}
-
-// --- The spin: the solid P turns down to its edge ----------------------------------------------
-
-private fun DrawScope.drawSpin(t: Float, art: MarkArt) {
-    val c = Offset(size.width / 2f, size.height / 2f)
-    val x = BootTimeline.phase(t, BootTimeline.RESOLVE_END, BootTimeline.SPIN_END)
-    val turn = 2.5f * PI.toFloat() * easeIn(x)
-    val facing = cos(turn)
-    val side = art.lens * 0.92f * (1f - 0.55f * easeIn(x))
-    val pScale = side * 0.56f / art.pBounds.height
-    val silver = Brush.verticalGradient(*SilverStops, startY = art.pBounds.top, endY = art.pBounds.bottom)
-    withTransform({
-        translate(c.x, c.y)
-        scale(pScale * facing, pScale, pivot = Offset.Zero)
-        translate(-art.pBounds.center.x, -art.pBounds.center.y)
-    }) {
-        // Its back is the same silver in shadow.
-        drawPath(art.p, silver)
-        if (facing < 0f) drawPath(art.p, Color.Black.copy(alpha = 0.4f))
-    }
-}
-
-// --- The unroll: the wordmark comes off a turning cylinder -------------------------------------
-
-private fun DrawScope.drawUnroll(t: Float, art: MarkArt) {
-    val u = BootTimeline.phase(t, BootTimeline.SPIN_END, BootTimeline.UNROLL_END)
-    // Opens steadily, then slows into flat: never a snap open.
-    val e = 1f - (1f - u).pow(2.2f)
-    val w = art.wordBounds.width
-    // From a sliver (the P on its edge) to nearly flat: the radius grows geometrically.
-    val r0 = 3.dp.toPx()
-    val r1 = w / (2f * 0.08f)
-    val radius = r0 * (r1 / r0).pow(e)
-    // The cylinder is still turning as it opens: the word comes round to face front.
-    val turn = (1f - e) * 1.4f
-    // The prism parts the colours at the turning edges, less and less as it flattens.
-    val fringe = 0.06f * (1f - e).pow(1.5f)
-    val c = Offset(size.width / 2f, size.height / 2f)
-    if (fringe > 0.002f) {
-        drawCylinder(art, c, radius * (1f - fringe), turn, Color(1f, 0f, 0f), BlendMode.Plus)
-        drawCylinder(art, c, radius, turn, Color(0f, 1f, 0f), BlendMode.Plus)
-        drawCylinder(art, c, radius * (1f + fringe), turn, Color(0f, 0f, 1f), BlendMode.Plus)
-    } else {
-        drawCylinder(art, c, radius, turn, null, BlendMode.SrcOver)
-    }
-}
-
-/** The wordmark on a cylinder of [radius] turned by [turn] radians, seen face on: drawn in thin upright strips. */
-private fun DrawScope.drawCylinder(art: MarkArt, c: Offset, radius: Float, turn: Float, tint: Color?, blend: BlendMode) {
-    val picture = art.picture
-    val strips = CylinderStrips
-    val stripW = picture.width.toFloat() / strips
-    val half = picture.width / 2f
-    val filter = tint?.let { ColorFilter.tint(it, BlendMode.Modulate) }
-    val top = (c.y - picture.height / 2f).roundToInt()
-    for (i in 0 until strips) {
-        val x0 = i * stripW - half
-        val x1 = x0 + stripW
-        val a0 = x0 / radius - turn
-        val a1 = x1 / radius - turn
-        if (a0 < -HALF_PI || a1 > HALF_PI) continue
-        val sx0 = c.x + radius * sin(a0)
-        val sx1 = c.x + radius * sin(a1)
-        val width = sx1 - sx0
-        if (width < 0.05f) continue
-        val shade = cos((a0 + a1) / 2f).coerceAtLeast(0f).pow(0.7f)
-        drawImage(
-            picture,
-            srcOffset = IntOffset((i * stripW).roundToInt(), 0),
-            srcSize = IntSize(((i + 1) * stripW).roundToInt() - (i * stripW).roundToInt(), picture.height),
-            dstOffset = IntOffset(sx0.roundToInt(), top),
-            dstSize = IntSize(max(1, (sx1 + 0.5f).roundToInt() - sx0.roundToInt()), picture.height),
-            alpha = shade,
-            colorFilter = filter,
-            blendMode = blend,
-            filterQuality = FilterQuality.Low,
-        )
-    }
-}
-
-// --- Flat: the wordmark at rest, and the dive through its O ------------------------------------
-
-private fun DrawScope.drawGlow(art: MarkArt, amount: Float) {
-    if (amount <= 0f) return
-    drawCircle(
-        Brush.radialGradient(
-            listOf(Color.White.copy(alpha = 0.075f * amount), Color.Transparent),
-            center = center,
-            radius = art.wordBounds.width * 0.62f,
-        ),
-        radius = art.wordBounds.width * 0.62f,
-        center = center,
-    )
-}
-
-/** The wordmark as it rests: silver, with its flakes, centred. */
-internal fun DrawScope.drawFlatMark(art: MarkArt, alpha: Float, scale: Float = 1f) {
-    val origin = art.origin
-    withTransform({
-        scale(scale, scale, pivot = center)
-        translate(origin.x, origin.y)
-    }) {
-        drawMarkPath(art, alpha, flakes = 1f)
-    }
-}
-
-private fun DrawScope.drawMarkPath(art: MarkArt, alpha: Float, flakes: Float) {
-    val wb = art.wordBounds
-    drawPath(art.word, Brush.verticalGradient(*SilverStops, startY = wb.top, endY = wb.bottom), alpha = alpha)
-    if (flakes > 0f) {
-        clipPath(art.word) {
-            drawRect(FlakeBrush(art.flakes, Offset(wb.left, wb.top)), topLeft = wb.topLeft, size = wb.size, alpha = alpha * flakes)
-        }
-    }
-}
-
-/** The camera dives into the O: the mark grows about its counter, and through the counter, the menu. */
-private fun DrawScope.drawDive(t: Float, art: MarkArt) {
-    val e = BootTimeline.dive(t)
-    val origin = art.origin
-    val cb = art.counterBounds
-    val counterAt = Offset(cb.center.x + origin.x, cb.center.y + origin.y)
-    // Deep enough that the counter covers the display's corners.
-    val a = cb.width / 2f
-    val b = cb.height / 2f
-    val zMax = 1.12f * sqrt((size.width / 2f / a).pow(2) + (size.height / 2f / b).pow(2))
-    val z = exp(ln(zMax) * e)
-    val centre = Offset(size.width / 2f, size.height / 2f)
-    val at = Offset(counterAt.x + (centre.x - counterAt.x) * easeInOut(e), counterAt.y + (centre.y - counterAt.y) * easeInOut(e))
-    val matrix = androidx.compose.ui.graphics.Matrix().apply {
-        translate(at.x, at.y)
-        scale(z, z)
-        translate(-cb.center.x, -cb.center.y)
-    }
-    // Black everywhere but through the counter.
-    val hole = Path().apply {
-        addPath(art.counter)
-        transform(matrix)
-    }
-    clipPath(hole, ClipOp.Difference) { drawRect(Color.Black) }
-    // The letters, flying past; their flakes fade as they grow.
-    withTransform({ transform(matrix) }) {
-        drawMarkPath(art, alpha = 1f, flakes = 1f - BootTimeline.phase(e, 0f, 0.35f))
-    }
-}
-
-/** The wordmark's flakes as a brush, laid from [origin] so they sit where the picture has them. */
-private class FlakeBrush(private val tile: ImageBitmap, private val origin: Offset) : ShaderBrush() {
-    override fun createShader(size: Size): Shader =
-        BitmapShader(tile.asAndroidBitmapCompat(), Shader.TileMode.REPEAT, Shader.TileMode.REPEAT).apply {
-            setLocalMatrix(Matrix().apply { setTranslate(origin.x, origin.y) })
-        }
-}
-
-/** A sweep of soft spectral colour for the lens's rim, turned by [shift] degrees. */
-@Suppress("FunctionName")
-private fun Iridescent(centre: Offset, shift: Float = 0f): Brush {
-    val colours = listOf(
-        Color(0xFF9FD8FF), Color(0xFF8C93FF), Color(0xFFC6A2FF), Color(0xFFFFB3E6),
-        Color(0xFFFFE3A8), Color(0xFFB8FFE4), Color(0xFF9FD8FF),
-    )
-    val turn = ((shift % 360f) / 360f)
-    val stops = colours.mapIndexed { i, colour -> ((i / (colours.size - 1f)) + turn) % 1f to colour }.sortedBy { it.first }
-    val full = buildList {
-        add(0f to stops.last().second)
-        addAll(stops)
-        add(1f to stops.first().second)
-    }.distinctBy { it.first }
-    return Brush.sweepGradient(*full.toTypedArray(), center = centre)
-}
-
-private fun backOut(x: Float): Float {
-    val c1 = 1.25f
-    val c3 = c1 + 1f
-    val y = x - 1f
-    return 1f + c3 * y * y * y + c1 * y * y
-}
-
-private fun easeIn(x: Float) = x * x * x
-private fun easeOut(x: Float) = 1f - (1f - x).pow(3)
-private fun easeInOut(x: Float) = x * x * (3f - 2f * x)
-
-private const val HALF_PI = (PI / 2).toFloat()
-
-/** How many upright strips the cylinder is drawn in. */
-private const val CylinderStrips = 120
-
-/** A skipped boot dives this fast. */
-private const val SKIP_DIVE_MS = 260
-
-/** With reduced motion, how long the still wordmark shows. */
-private const val REDUCED_HOLD_MS = 900L
-
-/** From the top of the line to the bottom: white where the light falls, then a soft silver. */
-private val SilverStops = arrayOf(0.18f to Color(0xFFEFEFF2), 0.52f to Color(0xFFD3D3D9), 0.84f to Color(0xFFA3A3AD))
-
-/** "PODIUM" is this many ems wide at the wordmark's letter spacing. */
-private const val WordmarkEms = 5.31f
-
-/**
- * One tile of the wordmark's flakes, from the body's seeded field (so it is the same every launch):
- * bright flakes and darker specks on transparent, each about a dp across.
- */
-private fun wordmarkFlakes(pxPerDp: Float): ImageBitmap {
-    val tile = (96 * pxPerDp).roundToInt().coerceIn(128, 512)
-    val flakes = GlitterField.flakes(tile, density = 0.85f, amount = 0.55f, flakePx = GlitterField.flakePx(0.4f, pxPerDp), seed = 71)
-    val bitmap = Bitmap.createBitmap(tile, tile, Bitmap.Config.ARGB_8888)
-    val canvas = android.graphics.Canvas(bitmap)
-    val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-    for (f in flakes) {
-        paint.color = if (f.lit) {
-            android.graphics.Color.argb((140 + 115 * f.brightness).roundToInt(), 255, 255, 255)
+        val armWaveAngle = if (waveP <= 0f) {
+            28f * (1f - riseP)
         } else {
-            android.graphics.Color.argb((30 + 70 * f.brightness).roundToInt(), 24, 24, 30)
+            // Two crisp friendly waves back & forth!
+            val envelope = sin(waveP * PI.toFloat()).coerceIn(0f, 1f)
+            sin(waveP * PI.toFloat() * 4.5f) * 24f * (0.35f + 0.65f * envelope)
         }
-        // Each flake at its place and wrapped across the edges, so the tiles join seamlessly.
-        for (dx in intArrayOf(0, -tile, tile)) for (dy in intArrayOf(0, -tile, tile)) {
-            val x = f.x + dx
-            val y = f.y + dy
-            if (x < -f.size || y < -f.size || x > tile + f.size || y > tile + f.size) continue
-            canvas.save()
-            canvas.rotate(f.angle, x, y)
-            canvas.drawRect(x - f.size / 2, y - f.size / 2, x + f.size / 2, y + f.size / 2, paint)
-            canvas.restore()
+        // Single cute blink around the middle of the wave
+        val blinkPhase = BootTimeline.phase(t, 1620f, 1800f)
+        val eyeOpen = 1f - sin(blinkPhase * PI.toFloat()).coerceIn(0f, 1f) * 0.85f
+
+        // Draw the 3D glossy robot character!
+        drawMascotRobot(
+            center = robotCenter,
+            unit = unit,
+            headTiltDeg = headTilt,
+            armWaveDeg = armWaveAngle,
+            eyeOpen = eyeOpen,
+            alpha = sceneAlpha,
+            isDark = isDark,
+            glowColor = glowColor,
+        )
+
+        // Orbit ring (front half drawn IN FRONT of lower torso for true 3D wrap!)
+        if (ringAlpha > 0.01f) {
+            drawOrbitRingHalf(
+                center = Offset(robotCenter.x, robotCenter.y + unit * 0.32f),
+                rx = unit * 1.55f * (0.72f + 0.28f * riseP),
+                ry = unit * 0.38f * (0.72f + 0.28f * riseP),
+                tiltDeg = -13f + sin(waveP * PI.toFloat() * 2f) * 2.5f,
+                alpha = ringAlpha,
+                isDark = isDark,
+                frontHalf = true,
+            )
         }
     }
-    return bitmap.asImageBitmap()
+}
+
+/** Draws the glossy 3D white CHORT robot with metallic headphones, smiling eyes, and waving hand. */
+private fun DrawScope.drawMascotRobot(
+    center: Offset,
+    unit: Float,
+    headTiltDeg: Float,
+    armWaveDeg: Float,
+    eyeOpen: Float,
+    alpha: Float,
+    isDark: Boolean,
+    glowColor: Color,
+) {
+    val whiteTop = Color(0xFFFFFFFF).copy(alpha = alpha)
+    val whiteMid = Color(0xFFF0F3F8).copy(alpha = alpha)
+    val whiteShadow = Color(0xFFC5CCD8).copy(alpha = alpha)
+    val shadowDrop = Color.Black.copy(alpha = (if (isDark) 0.36f else 0.14f) * alpha)
+
+    // 1. Torso (rounded pear-like glossy body below the head)
+    val bodyTop = center.y - unit * 0.02f
+    val bodyW = unit * 0.84f
+    val bodyH = unit * 0.92f
+    val bodyRect = Rect(center.x - bodyW / 2f, bodyTop, center.x + bodyW / 2f, bodyTop + bodyH)
+
+    // Soft torso drop shadow
+    drawRoundRect(
+        color = shadowDrop,
+        topLeft = Offset(bodyRect.left + unit * 0.05f, bodyRect.top + unit * 0.08f),
+        size = Size(bodyW, bodyH),
+        cornerRadius = CornerRadius(bodyW * 0.44f, bodyW * 0.44f),
+    )
+    drawRoundRect(
+        brush = Brush.radialGradient(
+            colors = listOf(whiteTop, whiteMid, whiteShadow),
+            center = Offset(center.x - bodyW * 0.18f, bodyTop + bodyH * 0.24f),
+            radius = bodyH * 0.95f,
+        ),
+        topLeft = bodyRect.topLeft,
+        size = bodyRect.size,
+        cornerRadius = CornerRadius(bodyW * 0.44f, bodyW * 0.44f),
+    )
+
+    // 2. Left tucked arm (cute rounded mitten on the left)
+    val leftArmCenter = Offset(center.x - unit * 0.56f, bodyTop + unit * 0.26f)
+    rotate(-26f, pivot = leftArmCenter) {
+        val aw = unit * 0.36f
+        val ah = unit * 0.26f
+        drawRoundRect(
+            color = shadowDrop,
+            topLeft = Offset(leftArmCenter.x - aw / 2f, leftArmCenter.y - ah / 2f + unit * 0.05f),
+            size = Size(aw, ah),
+            cornerRadius = CornerRadius(ah / 2f, ah / 2f),
+        )
+        drawRoundRect(
+            brush = Brush.radialGradient(
+                colors = listOf(whiteTop, whiteMid, whiteShadow),
+                center = Offset(leftArmCenter.x - aw * 0.15f, leftArmCenter.y - ah * 0.2f),
+                radius = aw * 0.9f,
+            ),
+            topLeft = Offset(leftArmCenter.x - aw / 2f, leftArmCenter.y - ah / 2f),
+            size = Size(aw, ah),
+            cornerRadius = CornerRadius(ah / 2f, ah / 2f),
+        )
+    }
+
+    // 3. Right waving arm ("Hello!" — pivoted at right shoulder)
+    val rightShoulder = Offset(center.x + unit * 0.34f, bodyTop + unit * 0.20f)
+    rotate(-34f + armWaveDeg, pivot = rightShoulder) {
+        val armLen = unit * 0.68f
+        val armThick = unit * 0.25f
+        val armTopLeft = Offset(rightShoulder.x - unit * 0.06f, rightShoulder.y - armThick / 2f)
+        drawRoundRect(
+            color = shadowDrop,
+            topLeft = Offset(armTopLeft.x + unit * 0.02f, armTopLeft.y + unit * 0.06f),
+            size = Size(armLen, armThick),
+            cornerRadius = CornerRadius(armThick / 2f, armThick / 2f),
+        )
+        drawRoundRect(
+            brush = Brush.linearGradient(
+                colors = listOf(whiteTop, whiteMid, whiteShadow),
+                start = Offset(armTopLeft.x, armTopLeft.y),
+                end = Offset(armTopLeft.x + armLen, armTopLeft.y + armThick),
+            ),
+            topLeft = armTopLeft,
+            size = Size(armLen, armThick),
+            cornerRadius = CornerRadius(armThick / 2f, armThick / 2f),
+        )
+    }
+
+    // 4. Head + Headphones + Smiling Eyes (tilted together playfully)
+    val headPivot = Offset(center.x, center.y - unit * 0.06f)
+    val headCenter = Offset(center.x, center.y - unit * 0.50f)
+    val headW = unit * 1.12f
+    val headH = unit * 0.90f
+
+    rotate(headTiltDeg, pivot = headPivot) {
+        // Soft headphone ambient aura
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(glowColor.copy(alpha = glowColor.alpha * alpha), Color.Transparent),
+                center = headCenter,
+                radius = unit * 1.15f,
+            ),
+            radius = unit * 1.15f,
+            center = headCenter,
+        )
+
+        // Headphone headband (metallic silver outer + dark charcoal inner cushion)
+        val bandR = headW * 0.62f
+        val bandRect = Rect(
+            headCenter.x - bandR,
+            headCenter.y - bandR * 1.04f,
+            headCenter.x + bandR,
+            headCenter.y + bandR * 0.96f,
+        )
+        drawArc(
+            brush = Brush.verticalGradient(
+                colors = listOf(Color(0xFFF4F6FA).copy(alpha = alpha), Color(0xFF8E97A6).copy(alpha = alpha)),
+                startY = bandRect.top,
+                endY = headCenter.y,
+            ),
+            startAngle = 192f,
+            sweepAngle = 156f,
+            useCenter = false,
+            topLeft = bandRect.topLeft,
+            size = bandRect.size,
+            style = Stroke(width = unit * 0.16f, cap = StrokeCap.Round),
+        )
+        drawArc(
+            color = Color(0xFF232730).copy(alpha = alpha),
+            startAngle = 198f,
+            sweepAngle = 144f,
+            useCenter = false,
+            topLeft = Offset(bandRect.left + unit * 0.045f, bandRect.top + unit * 0.045f),
+            size = Size(bandRect.width - unit * 0.09f, bandRect.height - unit * 0.09f),
+            style = Stroke(width = unit * 0.095f, cap = StrokeCap.Round),
+        )
+
+        // Left & Right 3D Headphone Ear Cups
+        drawEarCup(
+            cupCenter = Offset(headCenter.x - headW * 0.56f, headCenter.y + headH * 0.08f),
+            unit = unit,
+            isLeft = true,
+            alpha = alpha,
+        )
+        drawEarCup(
+            cupCenter = Offset(headCenter.x + headW * 0.56f, headCenter.y + headH * 0.08f),
+            unit = unit,
+            isLeft = false,
+            alpha = alpha,
+        )
+
+        // Head drop shadow
+        val headRect = Rect(
+            headCenter.x - headW / 2f,
+            headCenter.y - headH / 2f,
+            headCenter.x + headW / 2f,
+            headCenter.y + headH / 2f,
+        )
+        drawRoundRect(
+            color = shadowDrop,
+            topLeft = Offset(headRect.left + unit * 0.04f, headRect.top + unit * 0.08f),
+            size = headRect.size,
+            cornerRadius = CornerRadius(headH * 0.42f, headH * 0.42f),
+        )
+
+        // Glossy 3D White Squircle Head
+        drawRoundRect(
+            brush = Brush.radialGradient(
+                colors = listOf(whiteTop, whiteMid, whiteShadow),
+                center = Offset(headCenter.x - headW * 0.16f, headCenter.y - headH * 0.22f),
+                radius = headW * 0.85f,
+            ),
+            topLeft = headRect.topLeft,
+            size = headRect.size,
+            cornerRadius = CornerRadius(headH * 0.42f, headH * 0.42f),
+        )
+        // Subtle glossy rim highlight along top of head
+        drawRoundRect(
+            brush = Brush.verticalGradient(
+                colors = listOf(Color.White.copy(alpha = 0.85f * alpha), Color.Transparent),
+                startY = headRect.top,
+                endY = headRect.top + headH * 0.35f,
+            ),
+            topLeft = Offset(headRect.left + unit * 0.03f, headRect.top + unit * 0.02f),
+            size = Size(headW - unit * 0.06f, headH - unit * 0.04f),
+            cornerRadius = CornerRadius(headH * 0.40f, headH * 0.40f),
+            style = Stroke(width = 1.6.dp.toPx()),
+        )
+
+        // Expressive Smiling Curved Eyes (^ ^) with cute blink
+        val eyeColor = Color(0xFF1F242D).copy(alpha = alpha)
+        val eyeY = headCenter.y + headH * 0.02f
+        val eyeSpacing = headW * 0.21f
+        val eyeW = headW * 0.17f
+        val eyeArchH = headH * 0.09f * eyeOpen
+        val eyeStroke = Stroke(width = (unit * 0.082f).coerceAtLeast(3.dp.toPx()), cap = StrokeCap.Round)
+
+        for (dir in listOf(-1f, 1f)) {
+            val ex = headCenter.x + dir * eyeSpacing
+            val path = Path().apply {
+                moveTo(ex - eyeW / 2f, eyeY + eyeArchH * 0.35f)
+                quadraticTo(ex, eyeY - eyeArchH, ex + eyeW / 2f, eyeY + eyeArchH * 0.35f)
+            }
+            drawPath(path, color = eyeColor, style = eyeStroke)
+        }
+    }
+}
+
+private fun DrawScope.drawEarCup(
+    cupCenter: Offset,
+    unit: Float,
+    isLeft: Boolean,
+    alpha: Float,
+) {
+    val tilt = if (isLeft) -10f else 10f
+    val outerW = unit * 0.24f
+    val outerH = unit * 0.56f
+    val padW = unit * 0.20f
+    val padH = unit * 0.62f
+    val padOffsetX = if (isLeft) unit * 0.08f else -unit * 0.08f
+    val shellOffsetX = if (isLeft) -unit * 0.04f else unit * 0.04f
+
+    rotate(tilt, pivot = cupCenter) {
+        // Metallic silver outer shell
+        drawRoundRect(
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    Color(0xFFF7F9FC).copy(alpha = alpha),
+                    Color(0xFFBAC2CF).copy(alpha = alpha),
+                    Color(0xFF7B8391).copy(alpha = alpha),
+                ),
+                start = Offset(cupCenter.x - outerW, cupCenter.y - outerH / 2f),
+                end = Offset(cupCenter.x + outerW, cupCenter.y + outerH / 2f),
+            ),
+            topLeft = Offset(cupCenter.x + shellOffsetX - outerW / 2f, cupCenter.y - outerH / 2f),
+            size = Size(outerW, outerH),
+            cornerRadius = CornerRadius(outerW * 0.55f, outerW * 0.55f),
+        )
+        // Dark matte leather cushion against the head
+        drawRoundRect(
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    Color(0xFF3A3F4B).copy(alpha = alpha),
+                    Color(0xFF171A21).copy(alpha = alpha),
+                ),
+                start = Offset(cupCenter.x, cupCenter.y - padH / 2f),
+                end = Offset(cupCenter.x, cupCenter.y + padH / 2f),
+            ),
+            topLeft = Offset(cupCenter.x + padOffsetX - padW / 2f, cupCenter.y - padH / 2f),
+            size = Size(padW, padH),
+            cornerRadius = CornerRadius(padW * 0.5f, padW * 0.5f),
+        )
+    }
+}
+
+/** Draws either the back half (180..360°) or front half (0..180°) of the tilted glowing orbit ring. */
+private fun DrawScope.drawOrbitRingHalf(
+    center: Offset,
+    rx: Float,
+    ry: Float,
+    tiltDeg: Float,
+    alpha: Float,
+    isDark: Boolean,
+    frontHalf: Boolean,
+) {
+    val startAngle = if (frontHalf) 0f else 180f
+    val sweepAngle = 180f
+    val ringColor = if (isDark) Color(0xFFEAF0FF) else Color(0xFFFFFFFF)
+    val rimShadow = if (isDark) Color(0xFF8AA8FF).copy(alpha = 0.25f * alpha) else Color(0xFF9EA7B8).copy(alpha = 0.30f * alpha)
+
+    rotate(tiltDeg, pivot = center) {
+        val rect = Rect(center.x - rx, center.y - ry, center.x + rx, center.y + ry)
+        // Soft shadow/glow underneath the ribbon
+        drawArc(
+            color = rimShadow,
+            startAngle = startAngle,
+            sweepAngle = sweepAngle,
+            useCenter = false,
+            topLeft = Offset(rect.left, rect.top + 3.dp.toPx()),
+            size = rect.size,
+            style = Stroke(width = (if (frontHalf) 6.5.dp else 4.dp).toPx(), cap = StrokeCap.Round),
+        )
+        // Crisp glowing white orbit ribbon
+        drawArc(
+            color = ringColor.copy(alpha = (if (frontHalf) 0.92f else 0.55f) * alpha),
+            startAngle = startAngle,
+            sweepAngle = sweepAngle,
+            useCenter = false,
+            topLeft = rect.topLeft,
+            size = rect.size,
+            style = Stroke(width = (if (frontHalf) 5.dp else 3.dp).toPx(), cap = StrokeCap.Round),
+        )
+    }
+}
+
+/** Draws a crisp vector eighth note (♪). */
+private fun DrawScope.drawSingleNote(
+    center: Offset,
+    scale: Float,
+    tiltDeg: Float,
+    color: Color,
+) {
+    rotate(tiltDeg, pivot = center) {
+        val headR = scale * 0.24f
+        val stemH = scale * 0.88f
+        val headCenter = Offset(center.x - headR * 0.4f, center.y + stemH * 0.35f)
+        drawOval(
+            color = color,
+            topLeft = Offset(headCenter.x - headR * 1.15f, headCenter.y - headR * 0.85f),
+            size = Size(headR * 2.3f, headR * 1.7f),
+        )
+        val stemX = headCenter.x + headR * 0.9f
+        val stemTop = headCenter.y - stemH
+        drawLine(
+            color = color,
+            start = Offset(stemX, headCenter.y - headR * 0.1f),
+            end = Offset(stemX, stemTop),
+            strokeWidth = scale * 0.13f,
+            cap = StrokeCap.Round,
+        )
+        val flag = Path().apply {
+            moveTo(stemX, stemTop)
+            quadraticTo(stemX + scale * 0.50f, stemTop + scale * 0.16f, stemX + scale * 0.36f, stemTop + scale * 0.50f)
+        }
+        drawPath(flag, color = color, style = Stroke(width = scale * 0.13f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    }
+}
+
+/** Draws a crisp vector beamed double eighth note (♫). */
+private fun DrawScope.drawBeamedNote(
+    center: Offset,
+    scale: Float,
+    tiltDeg: Float,
+    color: Color,
+) {
+    rotate(tiltDeg, pivot = center) {
+        val headR = scale * 0.20f
+        val stemH = scale * 0.78f
+        val dx = scale * 0.56f
+        val leftHead = Offset(center.x - dx / 2f, center.y + stemH * 0.36f)
+        val rightHead = Offset(center.x + dx / 2f, center.y + stemH * 0.22f)
+        val strokeW = scale * 0.12f
+
+        for (h in listOf(leftHead, rightHead)) {
+            drawOval(
+                color = color,
+                topLeft = Offset(h.x - headR * 1.15f, h.y - headR * 0.85f),
+                size = Size(headR * 2.3f, headR * 1.7f),
+            )
+        }
+        val lx = leftHead.x + headR * 0.85f
+        val rx = rightHead.x + headR * 0.85f
+        val lTop = leftHead.y - stemH
+        val rTop = rightHead.y - stemH
+        drawLine(color, Offset(lx, leftHead.y), Offset(lx, lTop), strokeWidth = strokeW, cap = StrokeCap.Round)
+        drawLine(color, Offset(rx, rightHead.y), Offset(rx, rTop), strokeWidth = strokeW, cap = StrokeCap.Round)
+        drawLine(color, Offset(lx, lTop), Offset(rx, rTop), strokeWidth = scale * 0.20f, cap = StrokeCap.Round)
+    }
+}
+
+private fun lerpF(a: Float, b: Float, t: Float): Float = a + (b - a) * t
+
+private fun easeOutCubic(t: Float): Float {
+    val u = 1f - t.coerceIn(0f, 1f)
+    return 1f - u * u * u
+}
+
+private fun easeOutBack(t: Float, overshoot: Float = 1.35f): Float {
+    val c1 = overshoot
+    val c3 = c1 + 1f
+    val x = t.coerceIn(0f, 1f) - 1f
+    return 1f + c3 * x * x * x + c1 * x * x
 }

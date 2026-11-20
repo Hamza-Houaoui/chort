@@ -72,6 +72,10 @@ fun HomeScreen(
     onlineArtwork: List<String> = emptyList(),
     /** Online Radio (Tunisian FM + worldwide directory). */
     onRadio: (() -> Unit)? = null,
+    /** Lifestyle hub: Podcasts, Holy Quran, Books. */
+    onLifestyle: (() -> Unit)? = null,
+    /** Tools hub: Gallery, Clock, Voice Memos, Listen Together. */
+    onTools: (() -> Unit)? = null,
     /** Podcasts: Apple Podcasts / iTunes & Podcast Index. */
     onPodcasts: (() -> Unit)? = null,
     /** Holy Quran: Quran.com API with synchronized Mosshaf & reciters. */
@@ -107,21 +111,64 @@ fun HomeScreen(
         if (nowPlayingActive) add(MenuEntry(strings.nowPlaying, MenuPreview.Artwork(listOfNotNull(nowPlayingArtwork)), onNowPlaying))
         add(MenuEntry(strings.music, MenuPreview.Artwork(art), onMusic))
         if (onOnline != null) add(MenuEntry(strings.online, if (onlineArtwork.isEmpty()) MenuPreview.None else MenuPreview.Carousel(onlineArtwork), onOnline))
-        if (onYouTube != null) add(MenuEntry(strings.youTube, MenuPreview.Instrument, onYouTube))
+        if (onYouTube != null) add(MenuEntry(strings.youTube, MenuPreview.YouTubeLogo, onYouTube))
         if (onSoundCloud != null) add(MenuEntry(strings.soundCloud, MenuPreview.Instrument, onSoundCloud))
         if (onRadio != null) add(MenuEntry(strings.radio, MenuPreview.Instrument, onRadio))
-        if (onPodcasts != null) add(MenuEntry(strings.podcasts, MenuPreview.Instrument, onPodcasts))
-        if (onQuran != null) add(MenuEntry(strings.quran, MenuPreview.Instrument, onQuran))
-        if (onBooks != null) add(MenuEntry(strings.books, MenuPreview.Instrument, onBooks))
-        if (onGallery != null) add(MenuEntry(strings.gallery, MenuPreview.Instrument, onGallery))
-        if (onClock != null) add(MenuEntry(strings.clock, MenuPreview.Instrument, onClock))
-        if (onVoiceMemos != null) add(MenuEntry(strings.voiceMemos, MenuPreview.Instrument, onVoiceMemos))
-        if (onListenTogether != null) add(MenuEntry(strings.listenTogether, MenuPreview.Instrument, onListenTogether, value = listenTogetherValue))
+        if (onLifestyle != null) {
+            add(MenuEntry(strings.lifestyle, MenuPreview.Instrument, onLifestyle))
+        } else {
+            if (onPodcasts != null) add(MenuEntry(strings.podcasts, MenuPreview.Instrument, onPodcasts))
+            if (onQuran != null) add(MenuEntry(strings.quran, MenuPreview.Instrument, onQuran))
+            if (onBooks != null) add(MenuEntry(strings.books, MenuPreview.Instrument, onBooks))
+        }
+        if (onTools != null) {
+            add(MenuEntry(strings.tools, MenuPreview.Instrument, onTools))
+        } else {
+            if (onGallery != null) add(MenuEntry(strings.gallery, MenuPreview.Instrument, onGallery))
+            if (onClock != null) add(MenuEntry(strings.clock, MenuPreview.Instrument, onClock))
+            if (onVoiceMemos != null) add(MenuEntry(strings.voiceMemos, MenuPreview.VoiceMemoLogo, onVoiceMemos))
+            if (onListenTogether != null) add(MenuEntry(strings.listenTogether, MenuPreview.Instrument, onListenTogether, value = listenTogetherValue))
+        }
         add(MenuEntry(strings.shuffleSongs, MenuPreview.Carousel(shuffled), onShuffleSongs, chevron = false))
         if (onInsights != null) add(MenuEntry(strings.insights, MenuPreview.Instrument, onInsights))
         add(MenuEntry(strings.settings, MenuPreview.Instrument, onSettings))
     }
     PaperMenu(entries, "home")
+}
+
+/** Lifestyle hub menu: Podcasts, Quran, and Books. */
+@Composable
+fun LifestyleScreen(
+    onPodcasts: () -> Unit,
+    onQuran: () -> Unit,
+    onBooks: () -> Unit,
+) {
+    val strings = LocalAppStrings.current
+    val entries = listOf(
+        MenuEntry(strings.podcasts, MenuPreview.Instrument, onPodcasts),
+        MenuEntry(strings.quran, MenuPreview.Instrument, onQuran),
+        MenuEntry(strings.books, MenuPreview.Instrument, onBooks),
+    )
+    PaperMenu(entries, "lifestyle")
+}
+
+/** Tools hub menu: Gallery, Clock, Voice Memos (with classic iPod mic logo), and Listen Together. */
+@Composable
+fun ToolsScreen(
+    onGallery: () -> Unit,
+    onClock: () -> Unit,
+    onVoiceMemos: () -> Unit,
+    onListenTogether: () -> Unit,
+    listenTogetherValue: String? = null,
+) {
+    val strings = LocalAppStrings.current
+    val entries = listOf(
+        MenuEntry(strings.gallery, MenuPreview.Instrument, onGallery),
+        MenuEntry(strings.clock, MenuPreview.Instrument, onClock),
+        MenuEntry(strings.voiceMemos, MenuPreview.VoiceMemoLogo, onVoiceMemos),
+        MenuEntry(strings.listenTogether, MenuPreview.Instrument, onListenTogether, value = listenTogetherValue),
+    )
+    PaperMenu(entries, "tools")
 }
 
 /** The Music menu. Sources that need the user (e.g. permission) offer their action first. */

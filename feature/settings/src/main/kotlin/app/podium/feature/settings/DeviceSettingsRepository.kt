@@ -94,6 +94,11 @@ interface DeviceSettingsRepository {
 
     fun setNostalgicNowPlaying(enabled: Boolean) {}
 
+    /** Now Playing layout model: Modern, Nostalgic, or Arch. */
+    val nowPlayingStyle: StateFlow<app.podium.core.designsystem.shell.NowPlayingStyle> get() = DefaultNowPlayingStyle
+
+    fun setNowPlayingStyle(style: app.podium.core.designsystem.shell.NowPlayingStyle) {}
+
     /** Interface language (Arabic, English, French, Turkish, Russian, or System Default). */
     val language: StateFlow<AppLanguage> get() = DefaultLang
 
@@ -112,3 +117,5 @@ interface DeviceSettingsRepository {
 private val Off: StateFlow<Boolean> = MutableStateFlow(false)
 private val On: StateFlow<Boolean> = MutableStateFlow(true)
 private val DefaultLang: StateFlow<AppLanguage> = MutableStateFlow(AppLanguage.SYSTEM)
+private val DefaultNowPlayingStyle: StateFlow<app.podium.core.designsystem.shell.NowPlayingStyle> =
+    MutableStateFlow(app.podium.core.designsystem.shell.NowPlayingStyle.MODERN)

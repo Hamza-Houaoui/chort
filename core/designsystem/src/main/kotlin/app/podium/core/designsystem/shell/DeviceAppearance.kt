@@ -196,3 +196,16 @@ data class HueWalk(private val l: Double, private val c: Double, private val h: 
         }
     }
 }
+
+/** Visual layout models for the Now Playing screen. */
+enum class NowPlayingStyle {
+    MODERN,
+    NOSTALGIC,
+    ARCH;
+
+    fun next(): NowPlayingStyle = when (this) {
+        MODERN -> NOSTALGIC
+        NOSTALGIC -> ARCH
+        ARCH -> MODERN
+    }
+}

@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -278,6 +279,8 @@ sealed interface Dest {
 
     /** The display's background colour, in the colour editor. */
     data object DisplayColor : Dest
+    data object AppearanceMode : Dest
+    data object MenuGradientColor : Dest
 
     /** A 0–1 level edited with the Wheel (grain, glitter, background opacity). */
     data class Level(val level: AppearanceLevel) : Dest
@@ -345,6 +348,8 @@ sealed interface Dest {
     /** Voice Memos (like the iPod's): record, play, rename, share and delete. */
     data object VoiceMemos : Dest
     data object Insights : Dest
+    data object Lifestyle : Dest
+    data object Tools : Dest
     data class RenameVoiceMemo(val uri: String, val currentName: String) : Dest
 
     /** Local music metadata and lyrics editors. */
@@ -356,10 +361,12 @@ sealed interface Dest {
 private val fixedDests = listOf(
     Dest.Home, Dest.Music, Dest.CoverFlow, Dest.Albums, Dest.Artists, Dest.Songs, Dest.Favorites, Dest.Playlists, Dest.NowPlaying,
     Dest.UpNext, Dest.Lyrics, Dest.Settings, Dest.Language, Dest.Appearance, Dest.DeviceBody, Dest.VirtualDisplay, Dest.Theme, Dest.Font,
-    Dest.LyricsFont, Dest.LyricsTheme, Dest.Background, Dest.Finish, Dest.CustomColor, Dest.DisplayColor, Dest.OnlineSources, Dest.OnlineChannel, Dest.Equalizer,
+    Dest.LyricsFont, Dest.LyricsTheme, Dest.Background, Dest.Finish, Dest.CustomColor, Dest.DisplayColor, Dest.AppearanceMode, Dest.MenuGradientColor, Dest.OnlineSources, Dest.OnlineChannel, Dest.Equalizer,
     Dest.CustomSources, Dest.AddCustomSource, Dest.ListenTogether, Dest.JoinTogetherAddress, Dest.Downloads, Dest.DownloadsCoverFlow,
     Dest.VoiceMemos,
     Dest.Insights,
+    Dest.Lifestyle,
+    Dest.Tools,
 ).associateBy { it.toString() }
 
 private fun Dest.encode(): String = when (this) {
@@ -495,7 +502,7 @@ private fun headerIconOf(
             strings.nowPlaying, strings.equalizer -> return HomeMenuIconKind.NowPlaying
             strings.settings -> return HomeMenuIconKind.Settings
             strings.language -> return HomeMenuIconKind.Language
-            strings.appearance, strings.customColor, strings.backgroundColor, strings.finish -> return HomeMenuIconKind.Appearance
+            strings.appearance, strings.appearanceMode, strings.menuGradient, strings.menuGradientColor, strings.customColor, strings.backgroundColor, strings.finish -> return HomeMenuIconKind.Appearance
             strings.deviceBody, strings.glitter, strings.glitterAmount, strings.glitterGlow, strings.glitterDensity, strings.glitterSize, strings.glitterOpacity, strings.grain, strings.followTilt -> return HomeMenuIconKind.Sparkle
             strings.virtualDisplay, strings.theme, strings.lyricsTheme -> return HomeMenuIconKind.Contrast
             strings.font, strings.lyricsFont -> return HomeMenuIconKind.Font
@@ -518,7 +525,7 @@ private fun headerIconOf(
         Dest.Settings -> HomeMenuIconKind.Settings
         Dest.Language -> HomeMenuIconKind.Language
         is Dest.MusicFolders -> HomeMenuIconKind.Folder
-        Dest.Appearance, Dest.Finish, Dest.CustomColor, Dest.DisplayColor -> HomeMenuIconKind.Appearance
+        Dest.Appearance, Dest.AppearanceMode, Dest.MenuGradientColor, Dest.Finish, Dest.CustomColor, Dest.DisplayColor -> HomeMenuIconKind.Appearance
         Dest.DeviceBody, is Dest.Level -> HomeMenuIconKind.Sparkle
         Dest.VirtualDisplay, Dest.Theme, Dest.LyricsTheme -> HomeMenuIconKind.Contrast
         Dest.Font, Dest.LyricsFont -> HomeMenuIconKind.Font
@@ -553,6 +560,8 @@ private fun headerIconOf(
         Dest.ListenTogether, Dest.JoinTogetherAddress, is Dest.JoinTogetherCode -> HomeMenuIconKind.ListenTogether
         Dest.VoiceMemos, is Dest.RenameVoiceMemo -> HomeMenuIconKind.VoiceMemos
         Dest.Insights -> HomeMenuIconKind.Insights
+        Dest.Lifestyle -> HomeMenuIconKind.Books
+        Dest.Tools -> HomeMenuIconKind.Settings
     }
 }
 
@@ -608,6 +617,8 @@ private fun titleOf(dest: Dest, graph: AppGraph): String {
         Dest.Finish -> strings.finish
         Dest.CustomColor -> strings.customColor
         Dest.DisplayColor -> strings.backgroundColor
+        Dest.AppearanceMode -> strings.appearanceMode
+        Dest.MenuGradientColor -> strings.menuGradientColor
         is Dest.Level -> when (dest.level) {
             app.podium.feature.settings.AppearanceLevel.Grain -> strings.grain
             app.podium.feature.settings.AppearanceLevel.GlitterAmount -> strings.glitterAmount
@@ -714,6 +725,8 @@ private fun titleOf(dest: Dest, graph: AppGraph): String {
         Dest.DownloadsCoverFlow -> strings.coverFlow
         Dest.VoiceMemos -> strings.voiceMemos
         Dest.Insights -> strings.insights
+        Dest.Lifestyle -> strings.lifestyle
+        Dest.Tools -> strings.tools
         is Dest.RenameVoiceMemo -> strings.rename
         is Dest.EditLocalSong -> strings.editSong
         is Dest.EditLocalAlbum -> strings.editAlbum
@@ -1197,7 +1210,48 @@ private fun ScreenOs(
                     val neutral = remember(colors.isDark) { Atmosphere.neutral(colors) }
                     AtmosphereBackground(if (top == Dest.NowPlaying) atmosphere else neutral, Modifier.fillMaxSize())
                 }
-                CompositionLocalProvider(LocalScreenInsets provides insets, LocalPaperLenses provides lenses) {
+                val savedAppearance by graph.deviceSettings.appearance.collectAsStateWithLifecycle()
+                val previewAppearance by graph.deviceSettings.preview.collectAsStateWithLifecycle()
+                val activeScreen = (previewAppearance ?: savedAppearance).screen
+                val paperModes = remember(activeScreen) {
+                    app.podium.core.designsystem.component.PaperModes(
+                        menuGradientEnabled = activeScreen.menuGradientEnabled,
+                        menuGradientColor = Color(activeScreen.menuGradientArgb),
+                        subMenuBlurPreview = activeScreen.subMenuBlurPreview,
+                        breadcrumbArchEnabled = activeScreen.breadcrumbArchEnabled,
+                    )
+                }
+                val appStrings = LocalAppStrings.current
+                val subMenuResolver: (String) -> List<String>? = remember(appStrings) {
+                    { label ->
+                        when (label) {
+                            appStrings.music -> listOf(appStrings.downloads, appStrings.coverFlow, appStrings.albums, appStrings.artists, appStrings.songs, appStrings.favorites)
+                            appStrings.online -> listOf(appStrings.search, appStrings.coverFlow, appStrings.home, appStrings.library, appStrings.downloads, appStrings.radio)
+                            appStrings.soundCloud -> listOf(appStrings.stream, appStrings.likes, appStrings.playlists, appStrings.topCharts, appStrings.searchSoundCloud)
+                            appStrings.radio -> listOf(appStrings.coverFlow, appStrings.favorites, "Tunisia", "Top World", "News", "Music")
+                            appStrings.lifestyle -> listOf(appStrings.podcasts, appStrings.quran, appStrings.books)
+                            appStrings.tools -> listOf(appStrings.gallery, appStrings.clock, appStrings.voiceMemos, appStrings.listenTogether)
+                            appStrings.podcasts -> listOf(appStrings.search, appStrings.topCharts, "Subscriptions", "Categories")
+                            appStrings.quran -> listOf("السور", appStrings.tafsirAndTranslation, appStrings.reciters, appStrings.searchQuran, appStrings.bookmarks)
+                            appStrings.books -> listOf(appStrings.allBooks, appStrings.folders, appStrings.favorites, "Online Library", appStrings.bookmarks)
+                            appStrings.gallery -> listOf(appStrings.photos, appStrings.albums, appStrings.videos, appStrings.folders, appStrings.favorites, appStrings.telegramSync)
+                            appStrings.clock -> listOf("World Clock", "Alarms", "Stopwatch", "Timer")
+                            appStrings.insights -> listOf("Overview", appStrings.music, appStrings.online, appStrings.youTube, appStrings.soundCloud, appStrings.radio)
+                            appStrings.settings -> listOf(appStrings.language, appStrings.appearance, appStrings.musicFolders, appStrings.equalizer, appStrings.sleepTimer)
+                            appStrings.appearance -> listOf(appStrings.deviceBody, appStrings.virtualDisplay, appStrings.appearanceMode, "CHORT Art", appStrings.nowPlayingLayout, appStrings.fullScreen)
+                            appStrings.deviceBody -> listOf(appStrings.finish, appStrings.customColor, appStrings.grain, appStrings.glitter)
+                            appStrings.virtualDisplay -> listOf(appStrings.theme, appStrings.font, appStrings.background, appStrings.backgroundColor)
+                            appStrings.appearanceMode -> listOf(appStrings.menuGradient, appStrings.menuGradientColor, appStrings.subMenuBlurPreview, appStrings.breadcrumbArch)
+                            else -> null
+                        }
+                    }
+                }
+                CompositionLocalProvider(
+                    LocalScreenInsets provides insets,
+                    LocalPaperLenses provides lenses,
+                    app.podium.core.designsystem.component.LocalPaperModes provides paperModes,
+                    app.podium.core.designsystem.component.LocalSubMenuPreviewResolver provides subMenuResolver,
+                ) {
                     NavDisplay(
                         backStack = backStack,
                         modifier = Modifier.fillMaxSize().then(behindOverlay).scrollEdgeFade(
@@ -1415,23 +1469,69 @@ private fun ScreenOs(
                         val iconKind = headerIconOf(top, focusedKey, focusedLabel, strings)
                         val ytPhoto by graph.youtubeMusic.accountPhotoUrl.collectAsStateWithLifecycle()
                         val scUser by graph.soundcloudRepository.currentUser.collectAsStateWithLifecycle()
+                        val savedApp by graph.deviceSettings.appearance.collectAsStateWithLifecycle()
+                        val previewApp by graph.deviceSettings.preview.collectAsStateWithLifecycle()
+                        val npStyle by graph.deviceSettings.nowPlayingStyle.collectAsStateWithLifecycle()
+                        val isArchNowPlaying = top == Dest.NowPlaying && npStyle == app.podium.core.designsystem.shell.NowPlayingStyle.ARCH
+                        val isAudioPlaying = snapshot.isActive && snapshot.intent == PlayIntent.PLAY
+                        val activeHdrScreen = (previewApp ?: savedApp).screen
+                        val showBreadcrumbTitle = activeHdrScreen.breadcrumbArchEnabled && activeHdrScreen.showHeaderTitle && backStack.size > 1
                         val avatarUri = when {
                             iconKind == HomeMenuIconKind.YtMusic || top is Dest.Online -> ytPhoto
                             iconKind == HomeMenuIconKind.SoundCloud || top is Dest.SoundCloud -> scUser?.avatarUrl
                             else -> null
                         }
-                        if (!avatarUri.isNullOrBlank()) {
-                            app.podium.core.designsystem.artwork.ArtworkImage(
-                                uri = avatarUri,
-                                size = 24.dp,
-                                fallbackText = if (iconKind == HomeMenuIconKind.SoundCloud) scUser?.username.orEmpty() else "YT",
-                                round = true,
-                            )
-                        } else {
-                            HeaderDynamicMenuIcon(iconKind)
+                        val robotActiveAtTop = snapshot.isActive && top != Dest.NowPlaying
+                        val iconModifier = if (robotActiveAtTop) Modifier.graphicsLayer { alpha = 0f } else Modifier
+                        androidx.compose.foundation.layout.Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+                        ) {
+                            if (isArchNowPlaying) {
+                                AnimatedHeaderWaveIcon(
+                                    playing = isAudioPlaying,
+                                    color = PodiumTheme.colors.labelPrimary,
+                                    modifier = iconModifier,
+                                )
+                            } else if (!avatarUri.isNullOrBlank()) {
+                                app.podium.core.designsystem.artwork.ArtworkImage(
+                                    uri = avatarUri,
+                                    size = 24.dp,
+                                    fallbackText = if (iconKind == HomeMenuIconKind.SoundCloud) scUser?.username.orEmpty() else "YT",
+                                    round = true,
+                                    modifier = iconModifier,
+                                )
+                            } else {
+                                androidx.compose.foundation.layout.Box(iconModifier) {
+                                    HeaderDynamicMenuIcon(iconKind)
+                                }
+                            }
+                            if (showBreadcrumbTitle) {
+                                app.podium.core.designsystem.type.PodiumText(
+                                    text = titleOf(top, graph),
+                                    style = PodiumTheme.type.rowFocused,
+                                    color = PodiumTheme.colors.labelPrimary,
+                                    maxLines = 1,
+                                )
+                            }
                         }
                     },
+                    showStatusPill = (graph.deviceSettings.preview.collectAsStateWithLifecycle().value ?: graph.deviceSettings.appearance.collectAsStateWithLifecycle().value).screen.showStatusPill,
                     modifier = Modifier.align(Alignment.TopCenter).then(behindOverlay),
+                )
+                val volState by graph.volume.state.collectAsStateWithLifecycle()
+                val screenHeightPx = with(density) { screenHeight.toPx().coerceAtLeast(1f) }
+                app.podium.feature.nowplaying.FloatingNowPlayingOrb(
+                    inNowPlaying = top == Dest.NowPlaying,
+                    hidden = fullScreen || stage.content != null,
+                    snapshot = snapshot,
+                    controller = graph.playbackController,
+                    pulse = graph.audioPulse,
+                    onOpenNowPlaying = navigator::showNowPlaying,
+                    modifier = behindOverlay,
+                    volumeFraction = volState.fraction,
+                    cursorYFraction = { lenses.centreOf(top)?.let { (it / screenHeightPx).coerceIn(0f, 1f) } },
+                    cursorKey = lenses.focusedItemOf(top),
                 )
                 // Over the title bar and the mini player, under menus and notices (D-104). The system's
                 // back goes to it, not to the screen behind.
@@ -1609,6 +1709,8 @@ private fun ScreenContent(
                 onOnline = if (onlineStatus != null) ({ navigator.push(Dest.Online(OnlinePlace.Menu)) }) else null,
                 onlineArtwork = onlineRecent.mapNotNull { it.artwork?.uri }.distinct().take(10),
                 onRadio = { navigator.push(Dest.Radio(app.podium.radio.RadioPlace.Menu)) },
+                onLifestyle = { navigator.push(Dest.Lifestyle) },
+                onTools = { navigator.push(Dest.Tools) },
                 onPodcasts = { navigator.push(Dest.Podcasts(app.podium.podcast.PodcastPlace.Menu)) },
                 onQuran = { navigator.push(Dest.Quran(app.podium.quran.QuranPlace.Menu)) },
                 onSoundCloud = { navigator.push(Dest.SoundCloud(app.podium.soundcloud.SoundCloudPlace.Menu)) },
@@ -1738,6 +1840,7 @@ private fun ScreenContent(
             // Settings ▸ Now Playing's tray (D-108) and Settings ▸ Now Playing (D-109).
             autoHideTray = graph.deviceSettings.hideNowPlayingTray.collectAsStateWithLifecycle().value,
             nostalgic = graph.deviceSettings.nostalgicNowPlaying.collectAsStateWithLifecycle().value,
+            style = graph.deviceSettings.nowPlayingStyle.collectAsStateWithLifecycle().value,
             isDownloaded = { id -> graph.downloads.isDownloaded(id) },
             isDownloading = { id -> graph.downloads.isDownloading(id) },
             onDownload = { track -> graph.downloads.download(track) },
@@ -1822,6 +1925,12 @@ private fun ScreenContent(
             settings,
             onDeviceBody = { navigator.push(Dest.DeviceBody) },
             onVirtualDisplay = { navigator.push(Dest.VirtualDisplay) },
+            onMode = { navigator.push(Dest.AppearanceMode) },
+            onChortArt = { podiumSpace?.enter() },
+        )
+        Dest.AppearanceMode -> app.podium.feature.settings.AppearanceModeScreen(
+            settings,
+            onGradientColor = { navigator.push(Dest.MenuGradientColor) },
         )
         Dest.DeviceBody -> DeviceBodyScreen(
             settings,
@@ -1865,6 +1974,7 @@ private fun ScreenContent(
         Dest.Finish -> FinishScreen(settings, onCustomColor = { navigator.push(Dest.CustomColor) })
         Dest.CustomColor -> CustomColorScreen(settings)
         Dest.DisplayColor -> CustomColorScreen(settings, ColorTarget.DisplayBackground)
+        Dest.MenuGradientColor -> CustomColorScreen(settings, ColorTarget.MenuGradient)
         is Dest.Level -> LevelScreen(settings, screen.level)
         Dest.ListenTogether -> app.podium.together.ListenTogetherScreen(
             together = graph.together,
@@ -1959,6 +2069,27 @@ private fun ScreenContent(
             onRename = { uri, name -> navigator.push(Dest.RenameVoiceMemo(uri.toString(), name)) },
         )
         Dest.Insights -> app.podium.insights.InsightsScreen(graph = graph)
+        Dest.Lifestyle -> app.podium.feature.library.LifestyleScreen(
+            onPodcasts = { navigator.push(Dest.Podcasts(app.podium.podcast.PodcastPlace.Menu)) },
+            onQuran = { navigator.push(Dest.Quran(app.podium.quran.QuranPlace.Menu)) },
+            onBooks = { navigator.push(Dest.Books(app.podium.books.BookPlace.Menu)) },
+        )
+        Dest.Tools -> {
+            val togetherState by graph.together.state.collectAsStateWithLifecycle()
+            val togetherValue = when (val ts = togetherState) {
+                is app.podium.together.TogetherState.Hosting -> "Code ${ts.code}"
+                is app.podium.together.TogetherState.Guest -> ts.hostName
+                is app.podium.together.TogetherState.Joining -> "Joining"
+                app.podium.together.TogetherState.Idle -> null
+            }
+            app.podium.feature.library.ToolsScreen(
+                onGallery = { navigator.push(Dest.Gallery(app.podium.gallery.GalleryPlace.Menu)) },
+                onClock = { navigator.push(Dest.Clock(app.podium.clock.ClockPlace.Menu)) },
+                onVoiceMemos = { navigator.push(Dest.VoiceMemos) },
+                onListenTogether = { navigator.push(Dest.ListenTogether) },
+                listenTogetherValue = togetherValue,
+            )
+        }
         is Dest.RenameVoiceMemo -> app.podium.voicememo.RenameVoiceMemoScreen(
             uri = android.net.Uri.parse(screen.uri),
             currentName = screen.currentName,
@@ -2595,5 +2726,57 @@ private fun app.podium.player.service.AudioOutputState.indicator(): app.podium.c
     route == app.podium.player.service.AudioRoute.WIRED -> app.podium.core.designsystem.shell.OutputIndicator.HEADPHONES
     route == app.podium.player.service.AudioRoute.SPEAKER -> app.podium.core.designsystem.shell.OutputIndicator.PHONE_SPEAKER
     else -> null
+}
+
+/**
+ * Dynamic 5-bar audio wave icon for the top-left header circle in Now Playing Arch mode:
+ * smoothly bounces while audio is playing and settles/freezes when paused.
+ */
+@Composable
+private fun AnimatedHeaderWaveIcon(
+    playing: Boolean,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
+    var phase by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    LaunchedEffect(playing) {
+        if (!playing) return@LaunchedEffect
+        var lastNs = 0L
+        while (true) {
+            androidx.compose.runtime.withFrameNanos { now ->
+                if (lastNs != 0L) {
+                    val dt = ((now - lastNs) / 1_000_000_000f).coerceIn(0f, 0.05f)
+                    phase += dt * 7.5f
+                }
+                lastNs = now
+            }
+        }
+    }
+    androidx.compose.foundation.Canvas(modifier = modifier.size(18.dp)) {
+        val barCount = 5
+        val baseFractions = floatArrayOf(0.28f, 0.58f, 0.92f, 0.58f, 0.28f)
+        val freqs = floatArrayOf(1.15f, 1.45f, 1.0f, 1.35f, 1.25f)
+        val offsets = floatArrayOf(0.0f, 1.2f, 2.4f, 3.6f, 4.8f)
+        val barW = 2.1.dp.toPx()
+        val gap = (size.width - barW * barCount) / (barCount - 1).coerceAtLeast(1)
+        val centerY = size.height / 2f
+        val maxH = size.height * 0.88f
+        for (i in 0 until barCount) {
+            val frac = if (playing) {
+                val wave = (kotlin.math.sin(phase * freqs[i] + offsets[i]) * 0.5f + 0.5f)
+                (0.22f + wave * 0.74f).coerceIn(0.20f, 0.98f)
+            } else {
+                baseFractions[i]
+            }
+            val h = (maxH * frac).coerceAtLeast(barW)
+            val x = i * (barW + gap)
+            drawRoundRect(
+                color = color,
+                topLeft = androidx.compose.ui.geometry.Offset(x, centerY - h / 2f),
+                size = androidx.compose.ui.geometry.Size(barW, h),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(barW / 2f, barW / 2f),
+            )
+        }
+    }
 }
 
