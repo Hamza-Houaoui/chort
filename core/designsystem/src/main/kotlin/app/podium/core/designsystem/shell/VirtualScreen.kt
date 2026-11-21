@@ -249,6 +249,8 @@ fun ScreenHeader(
     /** Optional custom composable shown in place of the text title (e.g. dynamic menu icon on Home). */
     titleContent: (@Composable () -> Unit)? = null,
     showStatusPill: Boolean = true,
+    /** Live MP3 download progress (0..100) shown beside the clock in the same pill housing; null when idle. */
+    downloadProgressPercent: Int? = null,
 ) {
     val haptics = rememberPodiumHaptics()
     val colors = PodiumTheme.colors
@@ -304,6 +306,19 @@ fun ScreenHeader(
                     ) {
                         ArtworkLayers(art, nowPlayingTitle)
                     }
+                },
+            )
+        }
+        if (downloadProgressPercent != null) {
+            add(
+                StatusItem("mp3dl", housing = -2) {
+                    PodiumText(
+                        "↓ ${downloadProgressPercent.coerceIn(0, 100)}%",
+                        type.caption.copy(fontSize = 11.sp, lineHeight = 14.sp),
+                        ink,
+                        Modifier.padding(horizontal = 2.dp),
+                        maxLines = 1,
+                    )
                 },
             )
         }

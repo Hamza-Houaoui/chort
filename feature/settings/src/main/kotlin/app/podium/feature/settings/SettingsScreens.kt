@@ -73,7 +73,7 @@ import app.podium.core.interaction.WheelContext
 import app.podium.core.interaction.rememberFocusListState
 import app.podium.core.interaction.rememberPodiumHaptics
 
-private enum class SettingsRow { Language, Appearance, Keyboard, MusicFolders, OnlineSources, CustomSources, SmartDownloads, Autoplay, Recommendations, AvoidRepeats, Crossfade, Equalizer, SleepTimer, OnlineLyrics, LyricsCredit, Haptics, Clicks, StartupSound, SoftwareUpdate }
+private enum class SettingsRow { Language, Appearance, Keyboard, MusicFolders, DownloadFolder, OnlineSources, CustomSources, SmartDownloads, Autoplay, Recommendations, AvoidRepeats, Crossfade, Equalizer, SleepTimer, OnlineLyrics, LyricsCredit, Haptics, Clicks, StartupSound, SoftwareUpdate }
 
 /** Settings ▸ Software update (D-99): the version, a check now, and whether Podium checks by itself. */
 interface SoftwareUpdateSettings {
@@ -100,6 +100,9 @@ fun SettingsScreen(
     onAppearance: () -> Unit,
     onMusicFolders: () -> Unit,
     onOnlineService: () -> Unit,
+    /** Settings ▸ Download Folder: destination folder for YouTube MP3 downloads. */
+    downloadFolderLabel: String = "CHORT Downloads",
+    onDownloadFolder: () -> Unit = {},
     /** Settings ▸ Language. */
     onLanguage: () -> Unit = {},
     /** Podium's space (D-54) without the two-finger pinch: personalize, stickers, help. */
@@ -177,6 +180,7 @@ fun SettingsScreen(
                 repository.setPodiumKeyboard(!podiumKeyboard)
             }
             SettingsRow.MusicFolders -> onMusicFolders()
+            SettingsRow.DownloadFolder -> onDownloadFolder()
             SettingsRow.OnlineSources -> onOnlineService()
             SettingsRow.CustomSources -> onCustomSources()
             SettingsRow.SmartDownloads -> {
@@ -291,6 +295,11 @@ fun SettingsScreen(
                     selection == app.podium.sources.api.FolderSelection.Everything -> strings.allFolders
                     else -> strings.songsCount(songsIncluded(folderList.orEmpty(), selection))
                 },
+            )
+            SettingsRow.DownloadFolder -> MenuRow(
+                "Download Folder",
+                focused,
+                value = downloadFolderLabel,
             )
             SettingsRow.OnlineSources -> MenuRow(service?.name ?: strings.onlineSources, focused, value = onlineServiceSummary(service))
             SettingsRow.CustomSources -> MenuRow(strings.customSources, focused, value = customSourcesSummary(customList))

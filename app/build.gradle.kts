@@ -20,8 +20,8 @@ android {
         // Provisional: the product name is pending trademark clearance (docs/repository-audit.md §5).
         applicationId = "app.podium"
         // A device test of the updater (D-99) builds a "newer" copy: -Ppodium.versionCode=7 -Ppodium.versionName=0.1.5.1
-        versionCode = providers.gradleProperty("podium.versionCode").orNull?.toInt() ?: 23
-        versionName = providers.gradleProperty("podium.versionName").orNull ?: "2.3"
+        versionCode = providers.gradleProperty("podium.versionCode").orNull?.toInt() ?: 24
+        versionName = providers.gradleProperty("podium.versionName").orNull ?: "2.4"
     }
     buildFeatures {
         buildConfig = true
@@ -34,6 +34,11 @@ android {
     // The cutout model is memory-mapped straight from the APK.
     androidResources {
         noCompress += "tflite"
+    }
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
     }
     signingConfigs {
         if (releaseStore != null) {
@@ -110,6 +115,10 @@ dependencies {
     implementation(libs.androidx.navigation3.ui)
     // Sticker cutout on the phone (D-55): LiteRT runs the bundled magic-touch model.
     implementation(libs.litert)
+    // Reliable YouTube MP3 downloader (yt-dlp + FFmpeg) + SAF folder writing
+    implementation("io.github.junkfood02.youtubedl-android:library:0.17.2")
+    implementation("io.github.junkfood02.youtubedl-android:ffmpeg:0.17.2")
+    implementation("androidx.documentfile:documentfile:1.0.1")
 
     // The library repository over a real (in-memory) database, on the development machine.
     testImplementation(libs.junit)

@@ -23,6 +23,7 @@ import androidx.compose.animation.slideOut
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -33,8 +34,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
+import app.podium.core.designsystem.glass.glass
+import app.podium.core.designsystem.tonal.tonalSurface
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
@@ -1436,32 +1440,7 @@ private fun ScreenOs(
                     nowPlayingTitle = if (miniPlayerVisible) snapshot.item?.title else null,
                     nowPlayingArtworkUri = if (miniPlayerVisible) snapshot.item?.artworkUri else null,
                     onOpenNowPlaying = navigator::showNowPlaying,
-                    leftAction = if (top == Dest.YouTube) {
-                        {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(6.dp)
-                                    .background(
-                                        color = colors.labelPrimary.copy(alpha = 0.14f),
-                                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                                    )
-                                    .clickable {
-                                        app.podium.youtube.YouTubeController.toggleBrowserFullscreen()
-                                    },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                androidx.compose.foundation.text.BasicText(
-                                    text = "⛶",
-                                    style = androidx.compose.ui.text.TextStyle(
-                                        color = colors.labelPrimary,
-                                        fontSize = androidx.compose.ui.unit.TextUnit(15f, androidx.compose.ui.unit.TextUnitType.Sp),
-                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                    ),
-                                )
-                            }
-                        }
-                    } else null,
+                    leftAction = null,
                     titleContent = {
                         val strings = LocalAppStrings.current
                         val focusedKey = lenses.focusedItemOf(top)
@@ -1517,9 +1496,52 @@ private fun ScreenOs(
                         }
                     },
                     showStatusPill = (graph.deviceSettings.preview.collectAsStateWithLifecycle().value ?: graph.deviceSettings.appearance.collectAsStateWithLifecycle().value).screen.showStatusPill,
+                    downloadProgressPercent = app.podium.youtube.YouTubeMp3Downloader.state.collectAsStateWithLifecycle().value.let { if (it.active) it.progressPercent else null },
                     modifier = Modifier.align(Alignment.TopCenter).then(behindOverlay),
                 )
+                if (!fullScreen && top == Dest.YouTube) {
+                    val pillShape = if (colors.style == DisplayStyle.INDUSTRIAL) {
+                        androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
+                    } else {
+                        androidx.compose.foundation.shape.RoundedCornerShape(percent = 50)
+                    }
+                    val pillModifier = when (colors.style) {
+                        DisplayStyle.TONAL -> Modifier.tonalSurface(pillShape, app.podium.core.designsystem.tonal.SurfaceLevel.Low)
+                        DisplayStyle.GLASS -> Modifier.glass(app.podium.core.designsystem.glass.GlassMaterial.Control, pillShape)
+                        DisplayStyle.INDUSTRIAL -> Modifier
+                            .background(Color.Black.copy(alpha = 0.45f), pillShape)
+                            .border(1.dp, colors.separator, pillShape)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .height(ScreenHeaderHeight)
+                            .then(behindOverlay),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .height(Spacing.housing)
+                                .then(pillModifier)
+                                .clickable {
+                                    app.podium.youtube.YouTubeController.toggleBrowserFullscreen()
+                                }
+                                .padding(horizontal = 10.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            androidx.compose.foundation.text.BasicText(
+                                text = "⛶",
+                                style = androidx.compose.ui.text.TextStyle(
+                                    color = colors.labelPrimary,
+                                    fontSize = androidx.compose.ui.unit.TextUnit(13f, androidx.compose.ui.unit.TextUnitType.Sp),
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                ),
+                            )
+                        }
+                    }
+                }
                 val volState by graph.volume.state.collectAsStateWithLifecycle()
+                val currentNpStyle by graph.deviceSettings.nowPlayingStyle.collectAsStateWithLifecycle()
                 val screenHeightPx = with(density) { screenHeight.toPx().coerceAtLeast(1f) }
                 app.podium.feature.nowplaying.FloatingNowPlayingOrb(
                     inNowPlaying = top == Dest.NowPlaying,
@@ -1532,6 +1554,7 @@ private fun ScreenOs(
                     volumeFraction = volState.fraction,
                     cursorYFraction = { lenses.centreOf(top)?.let { (it / screenHeightPx).coerceIn(0f, 1f) } },
                     cursorKey = lenses.focusedItemOf(top),
+                    animateTransitions = currentNpStyle == app.podium.core.designsystem.shell.NowPlayingStyle.MODERN,
                 )
                 // Over the title bar and the mini player, under menus and notices (D-104). The system's
                 // back goes to it, not to the screen behind.
@@ -1882,24 +1905,50 @@ private fun ScreenContent(
             back = { navigator.pop() },
         )
         Dest.UpNext -> UpNextScreen(controller)
-        Dest.Settings -> SettingsScreen(
-            onPodiumSpace = { podiumSpace?.enter() },
-            repository = settings,
-            folders = graph.musicFolders,
-            onlineService = graph.onlineService,
-            onLanguage = { navigator.push(Dest.Language) },
-            onAppearance = { navigator.push(Dest.Appearance) },
-            onMusicFolders = { navigator.push(Dest.MusicFolders("")) },
-            onOnlineService = { navigator.push(Dest.OnlineSources) },
-            onEqualizer = { navigator.push(Dest.Equalizer) },
-            sleepTimer = graph.sleepTimer,
-            onSleepTimer = { overlay.show(sleepTimerMenu(graph.sleepTimer)) },
-            customSources = graph.customSources,
-            onCustomSources = { navigator.push(Dest.CustomSources) },
-            smartDownloads = graph.downloads.smartDownloadsEnabled,
-            onSetSmartDownloads = { graph.downloads.setSmartDownloads(it) },
-            softwareUpdate = remember(graph) { app.podium.update.SoftwareUpdate(graph.updates, checksByItself = !BuildConfig.DEBUG) },
-        )
+        Dest.Settings -> {
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            val prefs = remember(ctx) { ctx.getSharedPreferences("chort_prefs", android.content.Context.MODE_PRIVATE) }
+            var downloadFolderUri by remember { mutableStateOf(prefs.getString("chort_download_folder_uri", null)) }
+            val folderPicker = androidx.activity.compose.rememberLauncherForActivityResult(
+                androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree(),
+            ) { uri ->
+                if (uri != null) {
+                    runCatching {
+                        ctx.contentResolver.takePersistableUriPermission(
+                            uri,
+                            android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                        )
+                    }
+                    prefs.edit().putString("chort_download_folder_uri", uri.toString()).apply()
+                    downloadFolderUri = uri.toString()
+                }
+            }
+            val downloadFolderLabel = remember(downloadFolderUri) {
+                downloadFolderUri?.let {
+                    android.net.Uri.parse(it).lastPathSegment?.substringAfterLast(':')?.substringAfterLast('/')
+                }?.takeIf { it.isNotBlank() } ?: "CHORT Downloads"
+            }
+            SettingsScreen(
+                onPodiumSpace = { podiumSpace?.enter() },
+                repository = settings,
+                folders = graph.musicFolders,
+                onlineService = graph.onlineService,
+                onLanguage = { navigator.push(Dest.Language) },
+                onAppearance = { navigator.push(Dest.Appearance) },
+                onMusicFolders = { navigator.push(Dest.MusicFolders("")) },
+                downloadFolderLabel = downloadFolderLabel,
+                onDownloadFolder = { folderPicker.launch(null) },
+                onOnlineService = { navigator.push(Dest.OnlineSources) },
+                onEqualizer = { navigator.push(Dest.Equalizer) },
+                sleepTimer = graph.sleepTimer,
+                onSleepTimer = { overlay.show(sleepTimerMenu(graph.sleepTimer)) },
+                customSources = graph.customSources,
+                onCustomSources = { navigator.push(Dest.CustomSources) },
+                smartDownloads = graph.downloads.smartDownloadsEnabled,
+                onSetSmartDownloads = { graph.downloads.setSmartDownloads(it) },
+                softwareUpdate = remember(graph) { app.podium.update.SoftwareUpdate(graph.updates, checksByItself = !BuildConfig.DEBUG) },
+            )
+        }
         Dest.Language -> app.podium.feature.settings.LanguageScreen(settings)
         Dest.Equalizer -> app.podium.feature.settings.EqualizerScreen(settings, onBand = { navigator.push(Dest.EqualizerBand(it)) })
         is Dest.EqualizerBand -> app.podium.feature.settings.EqualizerBandScreen(settings, screen.band, onDone = { navigator.pop() })
@@ -2183,6 +2232,7 @@ private fun GlobalInput(
     startScan: (direction: Int) -> Job,
 ) {
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
     DisposableEffect(router, navigator) {
         var scan: Job? = null
         val playPause = DoublePress()
@@ -2295,62 +2345,97 @@ private fun GlobalInput(
                     }
                     WheelButton.CENTER -> {
                         if (navigator.current == Dest.YouTube) {
-                            app.podium.youtube.YouTubeController.captureForAudioHandoff { videoId, playlistId, posMs ->
-                                scope.launch {
-                                    runCatching {
-                                        val ytmId = graph.youtubeMusic.descriptor.id
-                                        if (videoId != null) {
-                                            val fetched = (graph.youtubeMusic.catalog.track(
-                                                app.podium.core.model.SourceRef(ytmId, videoId)
-                                            ) as? Outcome.Success)?.value
-                                            val track = fetched ?: app.podium.core.model.Track(
-                                                id = app.podium.core.model.TrackId.of(ytmId, videoId),
-                                                source = app.podium.core.model.SourceRef(
-                                                    ytmId,
-                                                    videoId,
-                                                    providerUri = "https://music.youtube.com/watch?v=$videoId",
-                                                ),
-                                                title = "YouTube Music",
-                                                artists = listOf(app.podium.core.model.ArtistCredit("YouTube Music")),
-                                                availability = app.podium.core.model.Availability.Playable,
-                                                routes = setOf(app.podium.core.model.PlaybackRoute.DIRECT),
-                                            )
-                                            graph.catalog.remember(listOf(track))
-                                            controller.playContext(listOf(track.id), 0, track.title)
-                                            navigator.showNowPlaying()
-                                            if (posMs > 1500L) {
-                                                var waited = 0
-                                                while (waited < 8000) {
-                                                    val snap = controller.snapshot.value
-                                                    if (snap.item?.trackId == track.id &&
-                                                        snap.status is app.podium.player.api.PlaybackStatus.Playing
-                                                    ) {
-                                                        kotlinx.coroutines.delay(250)
-                                                        controller.seekTo(posMs)
-                                                        break
+                            overlay.show(
+                                app.podium.core.designsystem.component.MenuSpec(
+                                    title = "YouTube",
+                                    actions = listOf(
+                                        app.podium.core.designsystem.component.MenuAction(
+                                            label = "Play Audio Only",
+                                            onSelect = {
+                                                app.podium.youtube.YouTubeController.captureForAudioHandoff { videoId, playlistId, posMs ->
+                                                    scope.launch {
+                                                        runCatching {
+                                                            val ytmId = graph.youtubeMusic.descriptor.id
+                                                            if (videoId != null) {
+                                                                val fetched = (graph.youtubeMusic.catalog.track(
+                                                                    app.podium.core.model.SourceRef(ytmId, videoId)
+                                                                ) as? Outcome.Success)?.value
+                                                                val track = fetched ?: app.podium.core.model.Track(
+                                                                    id = app.podium.core.model.TrackId.of(ytmId, videoId),
+                                                                    source = app.podium.core.model.SourceRef(
+                                                                        ytmId,
+                                                                        videoId,
+                                                                        providerUri = "https://music.youtube.com/watch?v=$videoId",
+                                                                    ),
+                                                                    title = "YouTube Music",
+                                                                    artists = listOf(app.podium.core.model.ArtistCredit("YouTube Music")),
+                                                                    availability = app.podium.core.model.Availability.Playable,
+                                                                    routes = setOf(app.podium.core.model.PlaybackRoute.DIRECT),
+                                                                )
+                                                                graph.catalog.remember(listOf(track))
+                                                                controller.playContext(listOf(track.id), 0, track.title)
+                                                                navigator.showNowPlaying()
+                                                                if (posMs > 1500L) {
+                                                                    var waited = 0
+                                                                    while (waited < 8000) {
+                                                                        val snap = controller.snapshot.value
+                                                                        if (snap.item?.trackId == track.id &&
+                                                                            snap.status is app.podium.player.api.PlaybackStatus.Playing
+                                                                        ) {
+                                                                            kotlinx.coroutines.delay(250)
+                                                                            controller.seekTo(posMs)
+                                                                            break
+                                                                        }
+                                                                        kotlinx.coroutines.delay(150)
+                                                                        waited += 150
+                                                                    }
+                                                                }
+                                                            } else if (playlistId != null) {
+                                                                val detail = (graph.youtubeMusic.catalog.playlist(
+                                                                    app.podium.core.model.PlaylistId.of(ytmId, playlistId)
+                                                                ) as? Outcome.Success)?.value
+                                                                val tracks = detail?.tracks.orEmpty()
+                                                                if (tracks.isNotEmpty()) {
+                                                                    graph.catalog.remember(tracks)
+                                                                    controller.playContext(
+                                                                        tracks.map { it.id },
+                                                                        0,
+                                                                        detail?.summary?.title ?: "Playlist",
+                                                                    )
+                                                                    navigator.showNowPlaying()
+                                                                }
+                                                            }
+                                                        }
                                                     }
-                                                    kotlinx.coroutines.delay(150)
-                                                    waited += 150
                                                 }
-                                            }
-                                        } else if (playlistId != null) {
-                                            val detail = (graph.youtubeMusic.catalog.playlist(
-                                                app.podium.core.model.PlaylistId.of(ytmId, playlistId)
-                                            ) as? Outcome.Success)?.value
-                                            val tracks = detail?.tracks.orEmpty()
-                                            if (tracks.isNotEmpty()) {
-                                                graph.catalog.remember(tracks)
-                                                controller.playContext(
-                                                    tracks.map { it.id },
-                                                    0,
-                                                    detail?.summary?.title ?: "Playlist",
-                                                )
-                                                navigator.showNowPlaying()
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                                            },
+                                        ),
+                                        app.podium.core.designsystem.component.MenuAction(
+                                            label = "Download MP3",
+                                            onSelect = {
+                                                val wv = app.podium.youtube.YouTubeController.activeWebView
+                                                val prefs = context.getSharedPreferences("chort_prefs", android.content.Context.MODE_PRIVATE)
+                                                val folderUri = prefs.getString("chort_download_folder_uri", null)
+                                                if (wv != null) {
+                                                    wv.evaluateJavascript("(function(){ return window.location.href || ''; })();") { raw ->
+                                                        val url = raw?.trim()?.removeSurrounding("\"")?.replace("\\/", "/")?.takeIf { it.isNotBlank() } ?: wv.url
+                                                        val (vid, _) = app.podium.youtube.YouTubeController.extractYouTubeMedia(url)
+                                                        if (vid != null) {
+                                                            app.podium.youtube.YouTubeMp3Downloader.enqueue(
+                                                                context = context,
+                                                                graph = graph,
+                                                                videoId = vid,
+                                                                fallbackTitle = wv.title,
+                                                                targetFolderUri = folderUri,
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                        ),
+                                    ),
+                                ),
+                            )
                             true
                         } else {
                             false

@@ -245,6 +245,7 @@ fun FloatingNowPlayingOrb(
     volumeFraction: Float = 0.5f,
     cursorYFraction: () -> Float? = { null },
     cursorKey: String? = null,
+    animateTransitions: Boolean = true,
 ) {
     val active = snapshot.isActive
     val playing = active && snapshot.intent == PlayIntent.PLAY
@@ -267,10 +268,10 @@ fun FloatingNowPlayingOrb(
     }
     var travelElapsedMs by remember { mutableFloatStateOf(2_000f) }
 
-    LaunchedEffect(inNowPlaying, active, hidden) {
+    LaunchedEffect(inNowPlaying, active, hidden, animateTransitions) {
         if (inNowPlaying) {
             wasInNowPlaying = true
-            if (wasOutsideActive && active && !hidden && !reduced) {
+            if (wasOutsideActive && active && !hidden && !reduced && animateTransitions) {
                 wasOutsideActive = false
                 isReturningToNowPlaying = true
                 OrbTransitionState.isReturningToNowPlaying = true
@@ -291,10 +292,14 @@ fun FloatingNowPlayingOrb(
             }
             if (wasInNowPlaying && active) {
                 wasInNowPlaying = false
-                activeExitIsArc = nextExitDirectArc
-                nextExitDirectArc = !nextExitDirectArc
-                val dur = if (activeExitIsArc) 1_200f else 2_000f
-                travelElapsedMs = if (reduced) dur else 0f
+                if (animateTransitions && !reduced) {
+                    activeExitIsArc = nextExitDirectArc
+                    nextExitDirectArc = !nextExitDirectArc
+                    travelElapsedMs = 0f
+                } else {
+                    val dur = if (activeExitIsArc) 1_200f else 2_000f
+                    travelElapsedMs = dur
+                }
             }
         }
     }
